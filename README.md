@@ -161,3 +161,10 @@ s.submit_job(script=['curl -O https://bootstrap.pypa.io/get-pip.py',
                      'python3 myscript.py'],
              files=['myscript.py'])
 ```
+## Retrieving Results
+
+To retrieve expected output files from the server via scp, call:
+
+```
+s.check_output(filename_on_server, local_filename)
+```
