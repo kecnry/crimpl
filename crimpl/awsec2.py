@@ -64,15 +64,10 @@ class AWSEC2Config(object):
         self.SecurityGroupId = SecurityGroupId
 
 
-
-class BaseServer(object):
-    def __init__(self, *args, **kwargs):
-        return
-
 # TODO:
 # def list_aws_ec2_instances():
 
-class AWSEC2(BaseServer):
+class AWSEC2(object):
     def __init__(self, config, instanceId, username='ubuntu', start=False):
         """
         Connect to an **existing** (running or stopped) EC2 instance.
@@ -81,8 +76,8 @@ class AWSEC2(BaseServer):
 
         Arguments
         -------------
-        * `instanceId`
         * `config`
+        * `instanceId`
         * `username`
         * `start`
         """
@@ -284,7 +279,7 @@ class AWSEC2(BaseServer):
 
         A running server charges per CPU-second.  See AWS pricing for more details.
 
-        Note that <AWSEC2.submit_job> will automatically start the server
+        Note that <AWSEC2.submit_script> will automatically start the server
         if not already manually started.
 
         Arguments
@@ -366,7 +361,7 @@ class AWSEC2(BaseServer):
             self._instance.wait_until_terminated()
         return self.state
 
-    def _submit_job_cmds(self, script, files, stop_on_complete):
+    def _submit_script_cmds(self, script, files, stop_on_complete, use_screen):
         if isinstance(script, str):
             # TODO: allow for http?
             if not _os.path.isfile(script):
@@ -375,17 +370,15 @@ class AWSEC2(BaseServer):
             f = open(script, 'r')
             script = script.readlines()
 
-        if isinstance(script, list):
-            # which should also be the case if originally passed as a filename
-
-            # TODO: use tmp file instead
-            f = open('crimpl_script.sh', 'w')
-            f.write("\n".join(script))
-            if stop_on_complete:
-                f.write("\nsudo shutdown now")
-            f.close()
-        else:
+        if not isinstance(script, list):
             raise TypeError("script must be of type string (path) or list (list of commands)")
+
+        # TODO: use tmp file instead
+        f = open('crimpl_script.sh', 'w')
+        f.write("\n".join(script))
+        if stop_on_complete:
+            f.write("\nsudo shutdown now")
+        f.close()
 
         if not isinstance(files, list):
             raise TypeError("files must be of type list")
@@ -393,17 +386,66 @@ class AWSEC2(BaseServer):
             if not _os.path.isfile(f):
                 raise ValueError("cannot find file at {}".format(f))
 
-        # TODO: use job id to create a directory on the server?
+        # TODO: use script id to create a directory on the server?
         scp_cmd = self.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path="")
 
         cmd = self.ssh_cmd
-        cmd += " \"chmod +x {script}; screen -m -d sh {script}\"".format(script=_os.path.basename("crimpl_script.sh"))
+        cmd += " \"chmod +x {script}; {screen} sh {script}\"".format(script=_os.path.basename("crimpl_script.sh"), screen="screen -m -d " if use_scren else "")
 
         return [scp_cmd, cmd]
 
-    def submit_job(self, script, files=[], stop_on_complete=True, trial_run=False):
+    def run_script(self, script, files=[], trial_run=False):
         """
-        Submit a job to the server.
+        Run a script on the server, and wait for it to complete.
+
+        See <AWSEC2.submit_script> to submit a script to leave running in the background
+        on the server.
+
+        Arguments
+        ----------------
+        * `script` (string or list): shell script to run on the remote server,
+            including any necessary installation steps.  Note that the script
+            can call any other scripts in `files`.  If a string, must be the
+            path of a valid file which will be copied to the server.  If a list,
+            must be a list of commands (i.e. a newline will be placed between
+            each item in the list and sent as a single script to the server).
+        * `files` (list, optional, default=[]): list of paths to additional files
+            to copy to the server required in order to successfully execute
+            `script`.
+        * `trial_run` (bool, optional, default=False): if True, the commands
+            that would be sent to the server are returned but not executed
+            (and the server is not started automatically - so these may include
+            an <ip> placeholder).
+
+
+        Returns
+        ------------
+        * None
+
+        Raises
+        ------------
+        * TypeError: if `script` or `files` are not valid types.
+        * ValueError: if the files referened by `script` or `files` are not valid.
+        """
+        if self.state != 'running' and not trial_run:
+            self.start(wait=True)
+
+        cmds = self._submit_script_cmds(script, files, stop_on_complete=False, use_screen=False)
+        if trial_run:
+            return cmds
+
+        for cmd in cmds:
+            print("running: {}".format(cmd))
+
+            # TODO: get around need to add IP to known hosts (either by
+            # expecting and answering yes, or by looking into subnet options)
+            _os.system(cmd)
+
+        return
+
+    def submit_script(self, script, files=[], stop_on_complete=True, trial_run=False):
+        """
+        Submit a script to the server.
 
         This will call <AWSEC2.start> and wait for
         the server to intialize if it is not already running.  Once running,
@@ -411,6 +453,8 @@ class AWSEC2(BaseServer):
         in a screen session at which point this method will return.
 
         To check on any expected output files, call <AWSEC2.check_output>.
+
+        See <AWSEC2.run_script> to run a script and wait for it to complete.
 
         Arguments
         ----------------
@@ -448,7 +492,7 @@ class AWSEC2(BaseServer):
         if self.state != 'running' and not trial_run:
             self.start(wait=True)
 
-        cmds = self._submit_job_cmds(script, files, stop_on_complete)
+        cmds = self._submit_script_cmds(script, files, stop_on_complete=True, use_screen=True)
         if trial_run:
             return cmds
 
@@ -476,7 +520,7 @@ class AWSEC2(BaseServer):
         * `wait_for_output` (bool, optional, default=False): NOT IMPLEMENTED
         * `restart_if_necessary` (bool, optional, default=True): start the server
             if it is not currently running.  This is particularly useful if
-            `stop_on_complete` was sent to <AWSEC2.submit_job>.
+            `stop_on_complete` was sent to <AWSEC2.submit_script>.
         * `stop_if_restarted` (bool, optional, default=True): if `restart_if_necessary`
             resulted in the need to start the server, then immediately stop it
             again.  Note that the server must manually be terminated (at some point,
