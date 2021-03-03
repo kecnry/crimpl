@@ -1,8 +1,6 @@
-# AWS EC2
-
 The AWS EC2 implementation relies heavily upon [BOTO3](https://boto3.readthedocs.io/).  For more advanced customization, consider using BOTO3 directly.  **crimpl** provides a high-level simplified interface to starting new or existing EC2 instances and submitting a script (including with any necessary installation/setup instructions).
 
-## Setup & Configuration
+# Setup & Configuration
 
 * Create or log into an AWS account.  Make sure billing is set up.  Note that using the resources below will be billed to your account.  Make sure to research pricing rates in advance.
 * [Install AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
@@ -53,7 +51,7 @@ If no saved configurations exist, you will need to create the `config` object an
 s = crimpl.AWSEC2.new(config=config, ...)
 ```
 
-## Managing Server State
+# Managing Server State
 
 A new server can be launched by calling (see above for configuration requirements):
 
@@ -77,7 +75,7 @@ and the server can be started, stopped, or terminated via `s.start()`, `s.stop()
 
 Note that a stopped server will not charge for CPU usage, but will charge (albeit less) for storage.  However, a stopped server can be restarted quicker than re-installing on a brand new instance.
 
-## Submitting Scripts
+# Submitting Scripts
 
 `AWSEC2` instances are designed to be built for a single job or multiple jobs submitted in serial (to save time during installation, no job queueing system is installed and jobs are run to use all available resources).
 
@@ -96,7 +94,7 @@ s.submit_script(script=['curl -O https://bootstrap.pypa.io/get-pip.py',
                         'python3 myscript.py'],
                 files=['myscript.py'])
 ```
-## Retrieving Results
+# Retrieving Results
 
 To retrieve expected output files from the server via scp, call:
 

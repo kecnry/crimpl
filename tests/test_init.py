@@ -7,7 +7,8 @@ def test_remoteslurm():
 
 def test_awsec2():
     c = crimpl.AWSEC2Config()
-    s = crimpl.AWSEC2.new(c)
+    # TODO: figure out how to test this remotely
+    #s = crimpl.AWSEC2.new(c)
 
 
 if __name__ == '__main__':

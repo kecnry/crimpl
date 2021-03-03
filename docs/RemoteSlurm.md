@@ -1,6 +1,6 @@
-# Remote Slurm
+The Remote Slurm implementation allows submitting jobs to a SLURM scheduler on a remote machine.
 
-## Setup & Configuration
+# Setup & Configuration
 
 * Make sure you have passwordless login available to `host`.  Preferably setup something like the following in `~/.ssh/config`:
 
@@ -48,7 +48,7 @@ If no saved configurations exist, you will need to create the `config` object an
 s = crimpl.RemoteSlurm(config=config, ...)
 ```
 
-## Environment Setup
+# Environment Setup
 
 Setting up the necessary dependencies can be done within the job script itself (in which case it will be run within the scheduled job) or in advance.  To run a script directly and wait for its output:
 
@@ -66,7 +66,7 @@ s.run_script(["python3 -m venv ~/tmp_venv",
 
 In this case, just re-include the activation of the same virtual environment when submitting the job script.  Alternatively, you could include all of these same instructions in the job script and they would be run within the scheduler itself.
 
-## Submitting Scripts
+# Submitting Scripts
 
 Submitting a script will edit the input script into a "sbatch" file to submit to the slurm scheduler.  `s.submit_script` accepts the following keyword arguments as options for the job:
 * `jobname`
@@ -83,14 +83,14 @@ Calling `s.submit_script` will then submit the job to the remote scheduler and s
 s.submit_script(script, files=[...])
 ```
 
-## Checking Status
+# Checking Status
 
 To check the status of the job (currently just the output of `squeue`), call `s.job_status`.
 
 Note that only one job can be submitted via `s.submit_script` per instance of `RemoteSlurm`.  To submit multiple jobs, create another `RemoteSlurm` instance, or disable tracking of a previously submitted script by calling `s.release_job()`.
 
 
-## Retrieving Results
+# Retrieving Results
 
 To retrieve expected output files from the server via scp, all:
 

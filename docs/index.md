@@ -1,6 +1,5 @@
-# crimpl
 
-<p align="center" style="text-align:center"><i>Connecting to Compute Resources made Simple(r)</i></p>
+<p align="center" style="text-align:center"><b>crimpl</b>: <i>Connecting to Compute Resources made Simple(r)</i></p>
 
 <pre align="center" style="text-align:center; font-family:monospace; margin: 30px">
   pip install crimpl
