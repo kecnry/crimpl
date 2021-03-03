@@ -1,0 +1,18 @@
+site_name: crimpl
+theme:
+    name: readthedocs
+    highlightjs: true
+    hljs_languages:
+        - python
+repo_name: GitHub
+repo_url: https://github.com/kecnry/crimpl/
+edit_uri: blob/master/docs/
+extra_css: [extra.css]
+nav:
+    - Installation & Setup: index.md
+    - Server Implementations:
+        - RemoteSlurm: RemoteSlurm.md
+        - AWSEC2: AWSEC2.md
+    - API:
+        - RemoteSlurm: api/RemoteSlurm.md
+        - AWSEC2: api/AWSEC2.md

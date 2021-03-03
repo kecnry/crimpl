@@ -26,10 +26,15 @@ Read the [latest documentation on readthedocs](https://crimpl.readthedocs.io) or
 
 Each type of server implements a `s.run_script` which runs a given set of commands remotely on the server, showing the output, and waiting for completion, and `s.submit_script` which starts the script running on the server and detaches while allowing for monitoring its progress remotely.  They also each include a `s.check_output` for copying expected output files back to the local machine.
 
+The configuration, options, and capabilities of each type of server are explored in more detail:
 
-## Documentation and API Docs
+* [RemoteSlurm](RemoteSlurm.md)
+* [AWSEC2](AWSEC2.md)
 
-The configuration, options, and capabilities of each type of server are explored in [the latest documentation on readthedocs](https://crimpl.readthedocs.io) or [browse the current documentation](./docs/index.md).
+## API Documentation
+
+* [RemoteSlurm](./api/RemoteSlurm.md)
+* [AWSEC2](./api/AWSEC2.md)
 
 ## Contributors
 
