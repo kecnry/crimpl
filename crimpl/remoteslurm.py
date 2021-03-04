@@ -3,39 +3,42 @@ from time import sleep as _sleep
 import os as _os
 import subprocess as _subprocess
 
+from . import common as _common
+
 
 class RemoteSlurmConfig(object):
     def __init__(self, host, directory='~/'):
         self.host = host
         self.directory = directory
 
-class RemoteSlurm(object):
-    def __init__(self, config=None, host=None, directory=None, job_id=None):
+class RemoteSlurm(_common.ServerJob):
+    def __init__(self, config=None, host=None, directory=None,
+                 job_name=None, slurm_id=None, connect_to_existing=None):
         """
         Connect to a remote server
 
         Arguments
         -------------
         * `config`
-        * `username`
-        * `start`
+        * `host`
+        * `directory`
+        * `job_name`
+        * `slurm_id`
+        * `connect_to_existing` (bool, optional, default=None): NOT YET IMPLEMENTED
         """
         # TODO: validate config
         if config is None:
-            self._config =  RemoteSlurmConfig(host, directory)
-        else:
-            self._config = config
-            if host is not None:
-                self._config.host = host
-            if directory is not None:
-                self._config.directory = directory
+            config =  RemoteSlurmConfig(host, directory)
 
-        if job_id is not None and not isinstance(job_id, int):
-            raise TypeError("job_id must be of type int")
-        self._job_id = job_id
+        if host is not None:
+            # TODO: make a deepcopy of config first to avoid editing to user copy?
+            config.host = host
 
-        # allow for caching remote_directory
-        self._remote_directory = None
+        if slurm_id is not None and not isinstance(slurm_id, int):
+            raise TypeError("slurm_id must be of type int")
+        self._slurm_id = slurm_id
+
+        super().__init__(config, job_name, directory, connect_to_existing)
 
     @property
     def config(self):
@@ -86,28 +89,30 @@ class RemoteSlurm(object):
         return "scp %s:{server_path} {local_path}" % (self.config.host)
 
     @property
-    def remote_directory(self):
+    def slurm_id(self):
         """
         """
-        if self._remote_directory is None:
-            home_dir = _subprocess.check_output(self.ssh_cmd+" \"pwd\"", shell=True).decode('utf-8').strip()
-            if "~" in self.config.directory:
-                self._remote_directory = self.config.directory.replace("~", home_dir)
-            else:
-                self._remote_directory = _os.path.join(home_dir, self.config.directory)
-        return self._remote_directory
+        if self._slurm_id is None:
+            # attempt to get slurm id from server
+            try:
+                out = _subprocess.check_output(self.ssh_cmd+" \"cat {}\"".format(_os.path.join(self.remote_directory, "crimpl_slurm_id")), shell=True).decode('utf-8').strip()
+                self._slurm_id = int(float(out))
+            except:
+                raise ValueError("No job has been submitted, call submit_script")
+
+        return self._slurm_id
 
     @property
-    def job_id(self):
-        """
-        """
-        return self._job_id
+    def squeue(self):
+        return _subprocess.check_output(self.ssh_cmd+" \"squeue -j {}\"".format(self.slurm_id), shell=True).decode('utf-8').strip()
 
     @property
     def job_status(self):
-        if self.job_id is None:
-            return "No job has been submitted, call submit_script"
-        out = _subprocess.check_output(self.ssh_cmd+" \"squeue -j {}\"".format(self.job_id), shell=True).decode('utf-8').strip()
+        try:
+            out = self.squeue
+        except:
+            # then no longer in the queue, so either invalid, complete, or failed
+            return 'complete'
         # print(out)
 
         # TODO: parse into something useful
@@ -115,7 +120,7 @@ class RemoteSlurm(object):
 
     def release_job(self):
         # stop tracking this job and allow submitting another
-        self._job_id = None
+        self._slurm_id = None
 
     def _submit_script_cmds(self, script, files, use_slurm, **slurm_kwargs):
         if isinstance(script, str):
@@ -129,7 +134,7 @@ class RemoteSlurm(object):
         if not isinstance(script, list):
             raise TypeError("script must be of type string (path) or list (list of commands)")
 
-        _slurm_kwarg_to_prefix = {'jobname': '-J ',
+        _slurm_kwarg_to_prefix = {'job_name': '-J ',
                                   'nprocs': '-n ',
                                   'walltime': '-t ',
                                   'mail_type': '--mail-type=',
@@ -158,15 +163,14 @@ class RemoteSlurm(object):
             if not _os.path.isfile(f):
                 raise ValueError("cannot find file at {}".format(f))
 
-        # TODO: use job id to create a sub-directory on the server?
-        mkdir_cmd = self.ssh_cmd+" \"mkdir -p {}\"".format(self.config.directory)
+        mkdir_cmd = self.ssh_cmd+" \"mkdir -p {}\"".format(self.remote_directory)
 
         # TODO: use job subdirectory for server_path
-        scp_cmd = self.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.config.directory+"/")
+        scp_cmd = self.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.remote_directory+"/")
 
         cmd = self.ssh_cmd
         # TODO: job subdirectory here
-        remote_script = _os.path.join(self.config.directory, _os.path.basename("crimpl_script.sh"))
+        remote_script = _os.path.join(self.remote_directory, _os.path.basename("crimpl_script.sh"))
         if use_slurm:
             cmd += " \"sbatch {remote_script}\"".format(remote_script=remote_script)
         else:
@@ -222,7 +226,7 @@ class RemoteSlurm(object):
         return
 
     def submit_script(self, script, files=[],
-                      jobname=None,
+                      job_name=None,
                       nprocs=4,
                       walltime='2-00:00:00',
                       mail_type='END,FAIL',
@@ -252,8 +256,9 @@ class RemoteSlurm(object):
         * `files` (list, optional, default=[]): list of paths to additional files
             to copy to the server required in order to successfully execute
             `script`.
-        * `jobname` (string, optional, default=None): name of the job within slurm.
-            Prepended to `script` as "#SBATCH -J jobname".
+        * `job_name` (string, optional, default=None): name of the job within slurm.
+            Prepended to `script` as "#SBATCH -J jobname".  Defaults to
+            <RemoteSlurm.job_name>.
         * `nprocs` (int, optional, default=4): number of processors to run the
             job.  Prepended to `script` as "#SBATCH -n nprocs".
         * `walltime` (string, optional, default='2-00:00:00'): maximum walltime
@@ -267,7 +272,7 @@ class RemoteSlurm(object):
 
         Returns
         ------------
-        * (int): <RemoteSlurm.job_id>
+        * (int): <RemoteSlurm.slurm_id>
 
         Raises
         ------------
@@ -277,11 +282,11 @@ class RemoteSlurm(object):
         * TypeError: if `script` or `files` are not valid types.
         * ValueError: if the files referened by `script` or `files` are not valid.
         """
-        if self.job_id is not None:
-            raise ValueError("a job is already submitted.  Use a new instance to run multiple jobs, or call release_job() to stop tracking job_id={}".format(self.job_id))
+        if self._slurm_id is not None:
+            raise ValueError("a job is already submitted.  Use a new instance to run multiple jobs, or call release_job() to stop tracking slurm_id={}".format(self.slurm_id))
 
         cmds = self._submit_script_cmds(script, files, use_slurm=True,
-                                        jobname=jobname,
+                                        job_name=job_name if job_name is not None else self.job_name,
                                         nprocs=nprocs,
                                         walltime=walltime,
                                         mail_type=mail_type,
@@ -299,9 +304,12 @@ class RemoteSlurm(object):
             out = _subprocess.check_output(cmd, shell=True).decode('utf-8').strip()
             print(out)
             if "sbatch" in cmd:
-                self._job_id = out.split(' ')[-1]
+                self._slurm_id = out.split(' ')[-1]
 
-        return self._job_id
+                # leave record of slurm id in the remote directory
+                _os.system(self.ssh_cmd+" \"echo {} > {}\"".format(self._slurm_id, _os.path.join(self.remote_directory, "crimpl_slurm_id")))
+
+        return self._slurm_id
 
     def check_output(self, server_path, local_path="./",
                      wait_for_output=False):

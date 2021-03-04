@@ -1,4 +1,6 @@
 
+from . import common as _common
+
 from time import sleep as _sleep
 import os as _os
 
@@ -32,7 +34,8 @@ def _get_ec2_instance_type(nprocs):
         raise ValueError("no known instanceType for nprocs={}".format(nprocs))
 
 class AWSEC2Config(object):
-    def __init__(self, KeyFile=None, KeyName=None, SubnetId=None, SecurityGroupId=None):
+    def __init__(self, KeyFile=None, KeyName=None, SubnetId=None, SecurityGroupId=None,
+                 directory='~/'):
         # TODO: allow setting API KEY, SECRET, etc here as well... rather than requiring aws config?
         # TODO: setters and getters with validation
         # TODO: environment variable or config file support so this doesn't have to be typed out each time
@@ -63,12 +66,16 @@ class AWSEC2Config(object):
         self.SubnetId = SubnetId
         self.SecurityGroupId = SecurityGroupId
 
+        self.directory = directory
+
 
 # TODO:
 # def list_aws_ec2_instances():
 
-class AWSEC2(object):
-    def __init__(self, config, instanceId, username='ubuntu', start=False):
+class AWSEC2(_common.ServerJob):
+    def __init__(self, config, instanceId, username='ubuntu',
+                 directory=None, start=False, job_name=None,
+                 connect_to_existing=None):
         """
         Connect to an **existing** (running or stopped) EC2 instance.
 
@@ -79,7 +86,10 @@ class AWSEC2(object):
         * `config`
         * `instanceId`
         * `username`
+        * `directory`
         * `start`
+        * `job_name`
+        * `connect_to_existing` (bool, optional, default=None): NOT YET IMPLEMENTED
         """
         if not _boto3_installed:
             raise ImportError("boto3 required for {}".format(self.__class__.__name__))
@@ -94,11 +104,15 @@ class AWSEC2(object):
             # will raise an error if instanceId not valid
             self._instance
 
+        super().__init__(config, job_name, directory, connect_to_existing)
+
         if start:
             return self.start()
 
     @classmethod
-    def new(cls, config, nprocs=None, InstanceType=None, ImageId='ami-03d315ad33b9d49c4', username='ubuntu', start=False):
+    def new(cls, config, nprocs=None,
+            InstanceType=None, ImageId='ami-03d315ad33b9d49c4',
+            username='ubuntu', directory=None, start=False):
         """
         Create a new EC2 instance.
 
@@ -111,6 +125,7 @@ class AWSEC2(object):
         * `InstanceType`
         * `ImageId`
         * `username`
+        * `directory`
         * `start`
         """
 
@@ -119,7 +134,7 @@ class AWSEC2(object):
                 raise ValueError("cannot provide both nprocs and instanceType")
             InstanceType = _get_ec2_instance_type(nprocs=nprocs)
 
-        self = cls(config=config, instanceId=None, username=username, start=start)
+        self = cls(config=config, instanceId=None, username=username, directory=directory, start=start)
 
         self._initialize_kwargs = {'InstanceType': InstanceType,
                                    'ImageId': ImageId,
@@ -177,7 +192,6 @@ class AWSEC2(object):
         ----------
         * <AWSEC2Config>
         """
-
         return self._config
 
     @property
@@ -235,7 +249,7 @@ class AWSEC2(object):
         except:
             ip = "{ip}"
 
-        return "scp -i %s {local_path} %s@%s:~/{server_path}" % (self.config.KeyFile, self.username, ip)
+        return "scp -i %s {local_path} %s@%s:{server_path}" % (self.config.KeyFile, self.username, ip)
 
     @property
     def scp_cmd_from(self):
@@ -253,7 +267,7 @@ class AWSEC2(object):
         except:
             ip = "{ip}"
 
-        return "scp -i %s %s@%s:~/{server_path} {local_path}" % (self.config.KeyFile, self.username, ip)
+        return "scp -i %s %s@%s:{server_path} {local_path}" % (self.config.KeyFile, self.username, ip)
 
     def wait_for_state(self, state, sleeptime=0.5):
         """
@@ -386,13 +400,14 @@ class AWSEC2(object):
             if not _os.path.isfile(f):
                 raise ValueError("cannot find file at {}".format(f))
 
-        # TODO: use script id to create a directory on the server?
-        scp_cmd = self.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path="")
+        mkdir_cmd = self.ssh_cmd+" \"mkdir -p {}\"".format(self.remote_directory)
+
+        scp_cmd = self.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.remote_directory)
 
         cmd = self.ssh_cmd
-        cmd += " \"chmod +x {script}; {screen} sh {script}\"".format(script=_os.path.basename("crimpl_script.sh"), screen="screen -m -d " if use_scren else "")
+        cmd += " \"cd {remote_directory}; chmod +x {script_name}; {screen} sh {script_name}\"".format(remote_directory=self.remote_directory, script_name="crimpl_script.sh", screen="screen -m -d " if use_screen else "")
 
-        return [scp_cmd, cmd]
+        return [mkdir_cmd, scp_cmd, cmd]
 
     def run_script(self, script, files=[], trial_run=False):
         """
@@ -492,7 +507,7 @@ class AWSEC2(object):
         if self.state != 'running' and not trial_run:
             self.start(wait=True)
 
-        cmds = self._submit_script_cmds(script, files, stop_on_complete=True, use_screen=True)
+        cmds = self._submit_script_cmds(script, files, stop_on_complete=stop_on_complete, use_screen=True)
         if trial_run:
             return cmds
 
@@ -543,7 +558,7 @@ class AWSEC2(object):
         if state != 'running':
             raise ValueError("cannot check output, current state: {}".format(state))
 
-        scp_cmd = self.scp_cmd_from.format(server_path=server_path, local_path=local_path)
+        scp_cmd = self.scp_cmd_from.format(server_path=_os.path.join(self.remote_directory, server_path), local_path=local_path)
         # TODO: execute cmd, handle wait_for_output and also handle errors if stopped/terminated before getting results
         print("running: {}".format(scp_cmd))
         _os.system(scp_cmd)

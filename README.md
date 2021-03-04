@@ -22,7 +22,7 @@
 Read the [latest documentation on readthedocs](https://crimpl.readthedocs.io) or [browse the current documentation](./docs/index.md).
 
 
-**crimpl** provides high-level python object-oriented interfaces to managing running scripts on remote compute resources.
+**crimpl** provides high-level python object-oriented interfaces to manage running scripts on remote compute resources.
 
 Each type of server implements a `s.run_script` which runs a given set of commands remotely on the server, showing the output, and waiting for completion, and `s.submit_script` which starts the script running on the server and detaches while allowing for monitoring its progress remotely.  They also each include a `s.check_output` for copying expected output files back to the local machine.
 
