@@ -64,7 +64,7 @@ and can also run or submit scripts:
 
 Note that charges are being accrued per CPU-second, so it can be costly to leave a large job EC2 instance running longer than necessary.
 
-To see all running EC2 instances on your AWS account, check the [AWS EC2 Console](https://console.aws.amazon.com/ec2/v2/home#Instances:)
+To see all running EC2 instances on your AWS account, check the [AWS EC2 Console](https://console.aws.amazon.com/ec2/v2/home#Instances:) or continue reading below to access through **crimpl**.
 
 # Submitting Scripts
 
@@ -84,21 +84,8 @@ j.submit_script(script=['curl -O https://bootstrap.pypa.io/get-pip.py',
                 files=['myscript.py'])
 ```
 
-If the setup script may take a while, it might make more financial sense to run that in advance from the 1-processor server EC2 instance.  For example:
 
-```
-s = crimpl.AWSEC2Server.new(...)
-s.run_script(script=['curl -O https://bootstrap.pypa.io/get-pip.py',
-                     'python3 get-pip.py --user',
-                     'pip install my_dependencies'])
-s.stop()
-
-j = s.create_job(nprocs=32)
-j.submit_script(script=['python3 myscript.py'],
-                files=['myscript.py'],
-                stop_on_complete=True)
-```
-
+**COMING SOON**: If the setup script may take a while, it might make more financial sense to run that in advance from the 1-processor server EC2 instance.  This will not work quite yet as only the local file system is persistent between instances.  In the future, there will hopefully be a cleaner way to create local virtual or conda environments which are also persistent.
 
 
 # Retrieving Results
@@ -113,13 +100,18 @@ j.check_output(filename_on_server, local_filename)
 
 It is most convenient to manage the state of EC2 instances and volumes from the [AWSEC2Server](./api/AWSEC2Server.md) and [AWSEC2Job](./api/AWSEC2Job.md) methods themselves.  However, top-level functions also exist to list all active instances and volumes within EC2 that are managed by **crimpl**.
 
-* [list_awsec2_instances](./api/list_awsec2_instances.md)
-* [list_awsec2_volumes](./api/list_awsec2_volumes.md)
+* [list_awsec2_instances](./api/crimpl.list_awsec2_instances.md)
+* [list_awsec2_volumes](./api/crimpl.list_awsec2_volumes.md)
 
 If an instance or volume is running that is no longer needed, they can be manually terminated/deleted via:
 
-* [terminate_awsec2_instance](./api/terminate_awsec2_instance.md)
-* [delete_awsec2_volume](./api/delete_awsec2_volume.md)
+* [terminate_awsec2_instance](./api/crimpl.terminate_awsec2_instance.md)
+* [delete_awsec2_volume](./api/crimpl.delete_awsec2_volume.md)
+
+Or all instances/volumes managed by crimpl can be terminated/deleted at once:
+
+* [terminate_all_awsec2_instances](./api/crimpl.terminate_all_awsec2_instances.md)
+* [delete_all_awsec2_volumes](./api/crimpl.delete_all_awsec2_volumes.md)
 
 And it never hurts to check the online AWS dashboard to make sure that there are no unexpected running services that could result in charges:
 

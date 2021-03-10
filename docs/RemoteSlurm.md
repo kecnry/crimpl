@@ -61,11 +61,13 @@ at which point you can run or submit scripts:
 * [RemoteSlurmJob.submit_script](./api/RemotSlurmJob.submit_script.md)
 
 Submitting a script will edit the input script into a "sbatch" file to submit to the slurm scheduler.  `j.submit_script` accepts the following keyword arguments as options for the job:
+
 * `job_name`
 * `nprocs`
 * `walltime`
 * `mail_type`
 * `mail_user`
+
 
 Any more advanced slurm configuration can be included directly in the input `script` itself.
 

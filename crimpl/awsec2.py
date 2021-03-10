@@ -92,7 +92,7 @@ def delete_awsec2_volume(volumeId):
     """
     _ec2_client.delete_volume(VolumeId=volumeId)
 
-def delete_all_volumes():
+def delete_all_awsec2_volumes():
     """
     Manually delete all AWS EC2 volumes managed by crimpl.
     """
@@ -111,7 +111,7 @@ def terminate_awsec2_instance(instanceId):
     """
     _ec2_client.terminate_instances(InstanceIds=[instanceId])
 
-def terminate_all_instances():
+def terminate_all_awsec2_instances():
     """
     Manually terminate all AWS EC2 instances managed by crimpl.
     """
