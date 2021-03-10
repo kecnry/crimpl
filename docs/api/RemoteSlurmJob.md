@@ -1,0 +1,12 @@
+## RemoteSlurmJob (class)
+
+* [__init__](RemoteSlurmJob.__init__.md)
+* [check_output](RemoteSlurmJob.check_output.md)
+* [job_name](RemoteSlurmJob.job_name.md)
+* [remote_directory](RemoteSlurmJob.remote_directory.md)
+* [run_script](RemoteSlurmJob.run_script.md)
+* [server](RemoteSlurmJob.server.md)
+* [slurm_id](RemoteSlurmJob.slurm_id.md)
+* [squeue](RemoteSlurmJob.squeue.md)
+* [status](RemoteSlurmJob.status.md)
+* [submit_script](RemoteSlurmJob.submit_script.md)

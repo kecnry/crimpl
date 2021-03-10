@@ -114,7 +114,7 @@ if __name__ == '__main__':
     fms = api_docs(crimpl, skip=[], members=[pydoc.inspect.isfunction])
 
     skip_methods = []
-    fms = api_docs(crimpl.RemoteSlurm, skip=skip_methods)
-    fms = api_docs(crimpl.RemoteSlurmConfig, skip=skip_methods)
-    fms = api_docs(crimpl.AWSEC2, skip=skip_methods)
-    fms = api_docs(crimpl.AWSEC2Config, skip=skip_methods)
+    fms = api_docs(crimpl.RemoteSlurmServer, skip=skip_methods)
+    fms = api_docs(crimpl.RemoteSlurmJob, skip=skip_methods)
+    fms = api_docs(crimpl.AWSEC2Server, skip=skip_methods)
+    fms = api_docs(crimpl.AWSEC2Job, skip=skip_methods)
