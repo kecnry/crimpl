@@ -5,14 +5,8 @@ import subprocess as _subprocess
 
 from . import common as _common
 
-
-class RemoteSlurmConfig(object):
-    def __init__(self, host, directory='~/'):
-        self.host = host
-        self.directory = directory
-
 class RemoteSlurmJob(_common.ServerJob):
-    def __init__(self, server=None, host=None, directory=None,
+    def __init__(self, server=None,
                  job_name=None, slurm_id=None, connect_to_existing=None):
         """
         Create and submit a job on a <RemoteSlurmServer>.
@@ -27,10 +21,6 @@ class RemoteSlurmJob(_common.ServerJob):
         * `server` (<RemoteSlurmServer>, optional, default=None): server to
             use when running the job.  If `server` is not provided, `host` must
             be provided.
-        * `host` (string, optional, default=None): override `host` of `server`.
-            Must be provided if `server` is None.  See <RemoteSlurmServer.host>.
-        * `directory` (string, optional, default=None): override `directory` of
-            `server`.  See <RemoteSlurmServer.directory>.
         * `job_name` (string, optional, default=None): name for this job instance.
             If not provided, one will be created from the current datetime and
             accessible through <RemoteSlurmJob.job_name>.  This `job_name` will
@@ -40,17 +30,37 @@ class RemoteSlurmJob(_common.ServerJob):
             Do **NOT** set `slurm_id` for a new <RemoteSlurmJob> instance.
         * `connect_to_existing` (bool, optional, default=None): NOT YET IMPLEMENTED
         """
-        if server is None:
-            server = RemoteSlurm(host=host, directory=directory)
-        else:
-            if host is not None:
-                server.config.host = host
-
         if slurm_id is not None and not isinstance(slurm_id, int):
             raise TypeError("slurm_id must be of type int")
+        # TODO: check if slurm_id and job_name are in agreement? or is this handled by the super call below?
         self._slurm_id = slurm_id
 
-        super().__init__(server, job_name, directory, connect_to_existing)
+
+        if connect_to_existing is None:
+            if job_name is None:
+                connect_to_existing = False
+            else:
+                connect_to_existing = True
+
+        # run ls on
+
+        job_matches = [j for j in server.existing_jobs if j == job_name or job_name is None]
+
+        if connect_to_existing:
+            if len(job_matches) == 1:
+                job_name = job_matches[0]
+            elif len(job_matches) > 1:
+                raise ValueError("{} jobs found on {} server.  Provide job_name or create a new job".format(len(job_matches), server.server_name))
+            else:
+                raise ValueError("no job could be found with job_name={} on {} server".format(job_name, server.server_name))
+        else:
+            if job_name is None:
+                job_name = _common._new_job_name()
+            elif len(job_matches):
+                raise ValueError("job_name={} already exists on {} server".format(job_name, server.server_name))
+
+
+        super().__init__(server, job_name)
 
     def __repr__(self):
         return "<RemoteSlurmJob job_name={}>".format(self.job_name)
@@ -333,7 +343,7 @@ class RemoteSlurmJob(_common.ServerJob):
 
 class RemoteSlurmServer(_common.Server):
     _JobClass = RemoteSlurmJob
-    def __init__(self, config=None, host=None, directory=None):
+    def __init__(self, host, directory=None):
         """
         Connect to a remote server running a Slurm scheduler.
 
@@ -342,38 +352,22 @@ class RemoteSlurmServer(_common.Server):
 
         Arguments
         -----------
-        * `config` (<RemoteSlurmConfig>, optional, default=None): configuration
-            options for the remote server.  If not provided, `host` must be provided.
-        * `host` (string, optional, default=None): override host of the remote server.
-            Must be passwordless ssh-able.  Must be provided if `config` is not
-            provided.
-        * `directory` (string, optional, default=None): override directory on the
-            remote server.
+        * `host` (string): override host of the remote server.  Must be
+            passwordless ssh-able.
+        * `directory` (string, optional, default=None): root directory of all
+            jobs to run on the remote server.  The directory will be created
+            if it does not already exist.
         """
-        # TODO: validate config
-        if config is None:
-            config =  RemoteSlurmConfig(host, directory)
+        self._host = host
 
-        if host is not None:
-            # TODO: make a deepcopy of config first to avoid editing to user copy?
-            config.host = host
+        super().__init__(directory)
 
-        super().__init__(config, directory)
+    @classmethod
+    def load(cls, name):
+        raise NotImplementedError()
 
     def __repr__(self):
         return "<RemoteSlurmServer host={} directory={}>".format(self.config.host, self.config.directory)
-
-    @property
-    def config(self):
-        """
-        <RemoteSlurmConfig>
-
-        Returns
-        ----------
-        * <RemoteSlurmConfig>
-        """
-
-        return self._config
 
     @property
     def host(self):
@@ -384,7 +378,7 @@ class RemoteSlurmServer(_common.Server):
         ---------
         * (string)
         """
-        return self.config.host
+        return self._host
 
     @property
     def ssh_cmd(self):
@@ -396,7 +390,7 @@ class RemoteSlurmServer(_common.Server):
         * (string)
         """
 
-        return "ssh {}".format(self.config.host)
+        return "ssh {}".format(self.host)
 
     @property
     def scp_cmd_to(self):
@@ -408,7 +402,7 @@ class RemoteSlurmServer(_common.Server):
         * (string): command with "{}" placeholders for `local_path` and `server_path`.
         """
 
-        return "scp {local_path} %s:{server_path}" % (self.config.host)
+        return "scp {local_path} %s:{server_path}" % (self.host)
 
     @property
     def scp_cmd_from(self):
@@ -420,7 +414,7 @@ class RemoteSlurmServer(_common.Server):
         * (string): command with "{}" placeholders for `server_path` and `local_path`.
         """
 
-        return "scp %s:{server_path} {local_path}" % (self.config.host)
+        return "scp %s:{server_path} {local_path}" % (self.host)
 
     @property
     def squeue(self):
@@ -445,3 +439,99 @@ class RemoteSlurmServer(_common.Server):
         * (string)
         """
         return _subprocess.check_output(self.ssh_cmd+" \"sinfo\"", shell=True).decode('utf-8').strip()
+
+    @property
+    def ls(self):
+        """
+        Run and return the output of `ls` on the server (for all jobs).
+
+        Returns
+        -----------
+        * (string)
+        """
+        return _subprocess.check_output(self.ssh_cmd+" \"ls\"", shell=True).decode('utf-8').strip()
+
+    def _submit_script_cmds(self, script, files):
+        if isinstance(script, str):
+            # TODO: allow for http?
+            if not _os.path.isfile(script):
+                raise ValueError("cannot find valid script at {}".format(script))
+
+            f = open(script, 'r')
+            script = script.readlines()
+
+        if not isinstance(script, list):
+            raise TypeError("script must be of type string (path) or list (list of commands)")
+
+        # TODO: use tmp file instead
+        f = open('crimpl_script.sh', 'w')
+        f.write("\n".join(script))
+        f.close()
+
+        if not isinstance(files, list):
+            raise TypeError("files must be of type list")
+        for f in files:
+            if not _os.path.isfile(f):
+                raise ValueError("cannot find file at {}".format(f))
+
+        mkdir_cmd = self.ssh_cmd+" \"mkdir -p {}\"".format(self.directory)
+
+        # TODO: use job subdirectory for server_path
+        scp_cmd = self.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.directory+"/")
+
+        cmd = self.ssh_cmd
+        # TODO: job subdirectory here
+        remote_script = _os.path.join(self.directory, _os.path.basename("crimpl_script.sh"))
+        cmd += " \"chmod +x {remote_script}; sh {remote_script}\"".format(remote_script=remote_script)
+
+        return [mkdir_cmd, scp_cmd, cmd]
+
+    def run_script(self, script, files=[], trial_run=False):
+        """
+        Run a script on the server, and wait for it to complete.
+
+        The files are copied and executed in <RemoteSlurmServer.directory> directly
+        (whereas <RemoteSlurmJob> scripts are executed in subdirectories).
+
+        This is useful for short installation/setup scripts that do not belong
+        in the scheduled job.
+
+        The resulting `script` and `files` are copied to <RemoteSlurmServer.directory>
+        on the remote server and then `script` is executed via ssh.
+
+        Arguments
+        ----------------
+        * `script` (string or list): shell script to run on the remote server,
+            including any necessary installation steps.  Note that the script
+            can call any other scripts in `files`.  If a string, must be the
+            path of a valid file which will be copied to the server.  If a list,
+            must be a list of commands (i.e. a newline will be placed between
+            each item in the list and sent as a single script to the server).
+        * `files` (list, optional, default=[]): list of paths to additional files
+            to copy to the server required in order to successfully execute
+            `script`.
+        * `trial_run` (bool, optional, default=False): if True, the commands
+            that would be sent to the server are returned but not executed.
+
+
+        Returns
+        ------------
+        * None
+
+        Raises
+        ------------
+        * TypeError: if `script` or `files` are not valid types.
+        * ValueError: if the files referened by `script` or `files` are not valid.
+        """
+        cmds = self._submit_script_cmds(script, files, use_slurm=False)
+        if trial_run:
+            return cmds
+
+        for cmd in cmds:
+            print("running: {}".format(cmd))
+
+            # TODO: get around need to add IP to known hosts (either by
+            # expecting and answering yes, or by looking into subnet options)
+            _os.system(cmd)
+
+        return

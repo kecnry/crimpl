@@ -16,88 +16,112 @@ The AWS EC2 implementation relies heavily upon [BOTO3](https://boto3.readthedocs
   * set Inbound and Outbound rules to All TCP and SSH with destination "anywhere" (or more restrictive if you'd like)
   * note `SecurityGroupId`.
 
+# The AWS EC2 Server
+
+With this information, you can now initialize a new [AWSEC2Server](./api/AWSEC2Server.md) instance.
+
 ```
 import crimpl
 
-config = crimpl.AWSEC2_Config(KeyFile="...",
-                              KeyName="...",
-                              SubnetId="...",
-                              SecurityGroupId="...")
+s = crimpl.AWSEC2Server.new(volumeSize=8,
+                            KeyFile="...",
+                            KeyName="...",
+                            SubnetId="...",
+                            SecurityGroupId="...")
 
 ```
 
-(**NOT YET IMPLEMENTED** - for now you'll have to create and pass this `config` object each time) to save these settings to a file in your `~/.crimpl` directory (**warning**: will be saved in plain text) and no longer need to worry about the config:
+This creates an AWS EBS volume in your account at the specified size.  This volume will be persistent until you destroy it and will accrue charges starting as soon as the first EC2 instance of a server or job is started and the volume initialized.  The server object does allow initializing an EC2 instance with 1 server that mounts the volume, which is useful for running virtual environment installation script (note that the OS root volume itself will not be persistent between the server and job EC2 instances) or copying large files.
+
+* [AWSEC2Server.start](./api/AWSEC2Server.start.md)
+* [AWSEC2Server.stop](./api/AWSEC2Server.stop.md)
+* [AWSEC2Server.terminate](./api/AWSEC2Server.terminate.md)
+* [AWSEC2Server.state](./api/AWSEC2Server.state.md)
+* [AWSEC2Server.delete_volume](./api/AWSEC2Server.delete_volume.md)
+* [AWSEC2Server.run_script](./api/AWSEC2Server.run_script.md)
+
+# The AWS EC2 Job Instance
+
+To run computation jobs with more resources, create an [AWSEC2Job](./api/AWSEC2Job.md) instance attached to an [AWSEC2Server](./api/AWSEC2Server.md).  Once started, the resulting EC2 instance will be initialized with the requested number of processors (rounded up to the next available configuration) and with access to the same file volume as the server instance.
+
+To create a new job, call [AWSEC2Server.create_job](./api/AWSEC2Server.create_job.md):
 
 ```
-config.save('my_ec2_configname')
+j = s.create_job(nprocs=8, job_name='my-unique-jobname')
 ```
 
-If only one config has been saved for `AWS_EC2` then the configuration will be loaded automatically:
+Similarly, you can access and change the state of the underlying EC2 instance:
 
-```
-s = crimpl.AWSEC2.new(...)
-```
+* [AWSEC2Job.start](./api/AWSEC2Job.start.md)
+* [AWSEC2Job.stop](./api/AWSEC2Job.stop.md)
+* [AWSEC2Job.terminate](./api/AWSEC2Job.terminate.md)
+* [AWSEC2Job.state](./api/AWSEC2Job.state.md)
 
-Otherwise, you'll just need to pass the name provided when saving:
+and can also run or submit scripts:
 
-```
-s = crimpl.AWSEC2.new(config='my_ec2_configname', ...)
-```
+* [AWSEC2Job.run_script](./api/AWSEC2Job.run_script.md)
+* [AWSEC2Job.submit_script](./api/AWSEC2Job.submit_script.md)
 
+Note that charges are being accrued per CPU-second, so it can be costly to leave a large job EC2 instance running longer than necessary.
 
-If no saved configurations exist, you will need to create the `config` object and pass it anytime you create a new server instance (use this option if you don't want to store any security details).
-
-```
-s = crimpl.AWSEC2.new(config=config, ...)
-```
-
-# Managing Server State
-
-A new server can be launched by calling (see above for configuration requirements):
-
-```
-s = crimpl.AWSEC2.new(nprocs=4)
-```
-
-or a previously created server can be retrieved by referring to its `instanceId` (if you may want to close python and re-connect later, it is very useful to call `print(s.instanceId)` at some point, otherwise you must check the [AWS EC2 Console](https://console.aws.amazon.com/ec2/v2/home#Instances:) to get the `instanceId`):
-
-```
-sr = crimpl.AWSEC2(s.instanceId)
-```
-
-the current state can be accessed via:
-
-```
-print(s.state)
-```
-
-and the server can be started, stopped, or terminated via `s.start()`, `s.stop()`, and `s.terminate()`, respectively.
-
-Note that a stopped server will not charge for CPU usage, but will charge (albeit less) for storage.  However, a stopped server can be restarted quicker than re-installing on a brand new instance.
+To see all running EC2 instances on your AWS account, check the [AWS EC2 Console](https://console.aws.amazon.com/ec2/v2/home#Instances:)
 
 # Submitting Scripts
 
-`AWSEC2` instances are designed to be built for a single job or multiple jobs submitted in serial (to save time during installation, no job queueing system is installed and jobs are run to use all available resources).
-
-To submit a job, pass a _shell script_ (as either a filename or as a list of commands) as well as any additional files that need to be copied to the server:
+To submit a job, pass a _shell script_ (as either a filename or as a list of commands) as well as any additional files that need to be copied to the server via [AWSEC2Job.submit_script](./api/AWSEC2Job.submit_script.md):
 
 ```
-s.submit_script(script, files=[...])
+j.submit_script(script, files=[...])
 ```
 
 Note that any required installation or setup steps should be included in this shell script (or they can be run separately while waiting for output via `s.run_script`).  To run a python code, for example, you may do something like the following:
 
 ```
-s.submit_script(script=['curl -O https://bootstrap.pypa.io/get-pip.py',
+j.submit_script(script=['curl -O https://bootstrap.pypa.io/get-pip.py',
                         'python3 get-pip.py --user',
                         'pip install my_dependencies',
                         'python3 myscript.py'],
                 files=['myscript.py'])
 ```
+
+If the setup script may take a while, it might make more financial sense to run that in advance from the 1-processor server EC2 instance.  For example:
+
+```
+s = crimpl.AWSEC2Server.new(...)
+s.run_script(script=['curl -O https://bootstrap.pypa.io/get-pip.py',
+                     'python3 get-pip.py --user',
+                     'pip install my_dependencies'])
+s.stop()
+
+j = s.create_job(nprocs=32)
+j.submit_script(script=['python3 myscript.py'],
+                files=['myscript.py'],
+                stop_on_complete=True)
+```
+
+
+
 # Retrieving Results
 
-To retrieve expected output files from the server via scp, call:
+To retrieve expected output files from the server via scp, call [AWSEC2Job.check_output](./api/AWSEC2Job.check_output.md):
 
 ```
-s.check_output(filename_on_server, local_filename)
+j.check_output(filename_on_server, local_filename)
 ```
+
+# Checking and Managing AWS Resources
+
+It is most convenient to manage the state of EC2 instances and volumes from the [AWSEC2Server](./api/AWSEC2Server.md) and [AWSEC2Job](./api/AWSEC2Job.md) methods themselves.  However, top-level functions also exist to list all active instances and volumes within EC2 that are managed by **crimpl**.
+
+* [list_awsec2_instances](./api/list_awsec2_instances.md)
+* [list_awsec2_volumes](./api/list_awsec2_volumes.md)
+
+If an instance or volume is running that is no longer needed, they can be manually terminated/deleted via:
+
+* [terminate_awsec2_instance](./api/terminate_awsec2_instance.md)
+* [delete_awsec2_volume](./api/delete_awsec2_volume.md)
+
+And it never hurts to check the online AWS dashboard to make sure that there are no unexpected running services that could result in charges:
+
+* [AWS EC2 Instances Dashboard](https://console.aws.amazon.com/ec2/v2/home#Instances:)
+* [AWS EC2 Volumes Dashboard](https://console.aws.amazon.com/ec2/v2/home#Volumes:sort=desc:createTime)

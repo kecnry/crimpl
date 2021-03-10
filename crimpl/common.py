@@ -2,27 +2,21 @@ from datetime import datetime as _datetime
 import os as _os
 import subprocess as _subprocess
 
-class Server(object):
-    def __init__(self, config, directory=None):
-        self._config = config
+__version__ = '0.1.0-dev1'
 
-        if directory is not None:
-            # TODO: make a deepcopy of config first to avoid editing to user copy?
-            self.config.directory = directory
+def _new_job_name():
+    return _datetime.now().strftime('%Y.%d.%m-%H.%M.%S')
+
+class Server(object):
+    def __init__(self, directory=None):
+        self._directory = directory
 
     def __str__(self):
         return self.__repr__()
 
     @property
-    def config(self):
-        """
-        """
-        # should subclass just to override API docs
-        return self._config
-
-    @property
     def directory(self):
-        return self.config.directory
+        return self._directory
 
     @property
     def ssh_cmd(self):
@@ -40,56 +34,40 @@ class Server(object):
     def existing_jobs(self):
         """
         """
-        out = _subprocess.check_output(self.ssh_cmd+" \"ls -d {}/crimpl-*\"".format(self.directory), shell=True).decode('utf-8').strip()
+        # TODO: override for EC2 to handle whatever servers are running (if the job server is running, have it check the status, otherwise have the server ec2 check the directory)
+
+        try:
+            out = _subprocess.check_output(self.ssh_cmd+" \"ls -d {}/crimpl-job-*\"".format(self.directory), shell=True).decode('utf-8').strip()
+        except _subprocess.CalledProcessError:
+            return []
+
         directories = out.split()
-        job_names = [d.split('crimpl-')[-1] for d in directories]
+        job_names = [d.split('crimpl-job-')[-1] for d in directories]
         return job_names
 
     @property
     def existing_jobs_status(self):
         """
         """
+        # TODO: override for EC2 to handle whatever servers are running (if the job server is running, have it check the status, otherwise have the server ec2 check the directory)
+
         return {job_name: self.get_job(job_name).status for job_name in self.existing_jobs}
 
     def create_job(self, job_name=None):
         """
         """
-        return self._JobClass(server=self, job_name=job_name)#, connect_to_existing=False)
+        return self._JobClass(server=self, job_name=job_name, connect_to_existing=False)
 
     def get_job(self, job_name=None):
         """
         """
-        return self._JobClass(server=self, job_name=job_name)#, connect_to_existing=True)
+        return self._JobClass(server=self, job_name=job_name, connect_to_existing=True)
 
 class ServerJob(object):
-    def __init__(self, server, job_name=None, directory=None, connect_to_existing=None):
+    def __init__(self, server, job_name=None):
         self._server = server
 
-        if connect_to_existing is None:
-            if job_name is None:
-                job_name = _datetime.now().strftime('%Y.%d.%m-%H.%M.%S')
-            # otherwise we'll connect to an existing if it matches, or create a new one
-        elif connect_to_existing:
-            if job_name is None:
-                # TODO: look in self.config.remote_directory, if a SINGLE
-                # job subdirectory exists, then adopt that job_name,
-                # if more than 1 exist: raise an error.
-                raise NotImplementedError("connect_to_existing not yet supported")
-            else:
-                # TODO: make sure that job_name exists on the remote sever or raise error
-                raise NotImplementedError("connect_to_existing not yet supported")
-        else:
-            if job_name is None:
-                job_name = _datetime.now().strftime('%Y.%d.%m-%H.%M.%S')
-            else:
-                # TODO: make sure that job_name DOES NOT exist on the remote server or raise error
-                raise NotImplementedError("connect_to_existing=False not yet supported")
-
         self._job_name = job_name
-
-        if directory is not None:
-            # TODO: make a deepcopy of config first to avoid editing to user copy?
-            self.server.config.directory = directory
 
         # allow for caching remote_directory
         self._remote_directory = None
@@ -102,10 +80,6 @@ class ServerJob(object):
         return self._server
 
     @property
-    def config(self):
-        return self.server.config
-
-    @property
     def job_name(self):
         """
         """
@@ -116,9 +90,16 @@ class ServerJob(object):
         """
         """
         if self._remote_directory is None:
-            home_dir = _subprocess.check_output(self.server.ssh_cmd+" \"pwd\"", shell=True).decode('utf-8').strip()
-            if "~" in self.config.directory:
-                self._remote_directory = _os.path.join(self.config.directory.replace("~", home_dir), "crimpl-{}".format(self.job_name))
+            if self.__class__.__name__ == 'AWSEC2Job':
+                if self._instanceId is not None:
+                    ssh_cmd = self.ssh_cmd
+                else:
+                    ssh_cmd = self.server.ssh_cmd
             else:
-                self._remote_directory = _os.path.join(home_dir, self.config.directory, "crimpl-{}".format(self.job_name))
+                ssh_cmd = self.server.ssh_cmd
+            home_dir = _subprocess.check_output(ssh_cmd+" \"pwd\"", shell=True).decode('utf-8').strip()
+            if "~" in self.server.directory:
+                self._remote_directory = _os.path.join(self.server.directory.replace("~", home_dir), "crimpl-job-{}".format(self.job_name))
+            else:
+                self._remote_directory = _os.path.join(home_dir, self.server.directory, "crimpl-job-{}".format(self.job_name))
         return self._remote_directory

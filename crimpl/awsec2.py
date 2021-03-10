@@ -6,12 +6,13 @@ import os as _os
 
 try:
     import boto3 as _boto3
+    _ec2_resource = _boto3.resource('ec2')
+    _ec2_client = _boto3.client('ec2')
 except ImportError:
     _boto3_installed = False
 else:
     _boto3_installed = True
-    _ec2_resource = _boto3.resource('ec2')
-    _ec2_client = _boto3.client('ec2')
+
 
 def _get_ec2_instance_type(nprocs):
     if nprocs < 2:
@@ -33,66 +34,416 @@ def _get_ec2_instance_type(nprocs):
     else:
         raise ValueError("no known instanceType for nprocs={}".format(nprocs))
 
-class AWSEC2Config(object):
-    def __init__(self, KeyFile=None, KeyName=None, SubnetId=None, SecurityGroupId=None,
-                 directory='~/'):
-        # TODO: allow setting API KEY, SECRET, etc here as well... rather than requiring aws config?
-        # TODO: setters and getters with validation
-        # TODO: environment variable or config file support so this doesn't have to be typed out each time
-
-        # TODO: if KeyFile is None:
-        """
-        ec2 = boto3.resource('ec2')
-
-        # create a file to store the key locally
-        outfile = open('ec2-keypair.pem','w')
-
-        # call the boto ec2 function to create a key pair
-        key_pair = ec2.create_key_pair(KeyName='ec2-keypair')
-
-        # capture the key and store it in a file
-        KeyPairOut = str(key_pair.key_material)
-        print(KeyPairOut)
-        outfile.write(KeyPairOut)
-        # may also need to chmod to 400
-        """
-
-        self.KeyFile = KeyFile
-
-        if KeyName is None and KeyFile is not None:
-            KeyName = _os.path.basename(KeyFile).split(".")[0]
-
-        self.KeyName = KeyName
-        self.SubnetId = SubnetId
-        self.SecurityGroupId = SecurityGroupId
-
-        self.directory = directory
-
 
 # TODO:
 # def list_aws_ec2_instances():
 
-class AWSEC2Job(_common.ServerJob):
-    def __init__(self, server, job_name=None, directory=None,
-                 connect_to_existing=None):
-        """
-        Connect to an **existing** (running or stopped) EC2 instance.
+def list_awsec2_instances():
+    """
+    list all AWS EC2 instances (either <AWSEC2Server> or <AWSEC2Job>) managed by crimpl.
 
-        To create a new instance, see <AWSEC2.new>.
+    Returns
+    -----------
+    * (dict): dictionary with instanceIds as keys and a dictionary as values
+    """
+    def _instance_to_dict(instance_dict):
+        d = {tag['Key']: tag['Value'] for tag in instance_dict['Tags']}
+        d['instanceId'] = instance_dict['InstanceId']
+        if 'PublicIpAddress' in instance_dict.keys():
+            d['ip'] = instance_dict['PublicIpAddress']
+        return d
+
+    def _get_instances(response):
+        instances = []
+        for reservation in response['Reservations']:
+            for instance in reservation['Instances']:
+                instances.append(instance)
+        return instances
+
+    response = _ec2_client.describe_instances(Filters=[{'Name': 'tag-key', 'Values': ['crimpl.version']}])
+    return {instance_dict['InstanceId']: _instance_to_dict(instance_dict) for instance_dict in _get_instances(response)}
+
+def list_awsec2_volumes():
+    """
+    list all AWS EC2 server volumes (for a <AWSEC2Server> and any of its created
+    <AWSEC2Job>) managed by crimpl.
+
+    Returns
+    -----------
+    * (dict): dictionary with volumeIds as keys and a dictionary as values
+    """
+    def _volume_to_dict(volume_dict):
+        d = {tag['Key']: tag['Value'] for tag in volume_dict['Tags']}
+        d['volumeId'] = volume_dict['VolumeId']
+        return d
+
+    response = _ec2_client.describe_volumes(Filters=[{'Name': 'tag-key', 'Values': ['crimpl.version']}])
+    return {volume_dict['VolumeId']: _volume_to_dict(volume_dict) for volume_dict in response['Volumes']}
+
+def delete_awsec2_volume(volumeId):
+    """
+    Manually delete an AWS EC2 volume by `volumeId`.
+
+    Usually this will be done via <AWSEC2Server.delete_volume>.
+
+    Arguments
+    -----------
+    * `volumeId` (string): AWS volumeId.  See <list_awsec2_volumes>.
+    """
+    _ec2_client.delete_volume(VolumeId=volumeId)
+
+def delete_all_volumes():
+    """
+    Manually delete all AWS EC2 volumes managed by crimpl.
+    """
+    for volumeId in list_awsec2_volumes().keys():
+        delete_awsec2_volume(volumeId)
+
+def terminate_awsec2_instance(instanceId):
+    """
+    Manually terminate an AWS EC2 instance by `instanceId`.
+
+    Usually this will be done via <AWSEC2Server.terminate> or <AWSEC2Job.terminate>.
+
+    Arguments
+    ----------
+    * `instanceId` (string): AWS EC2 instanceId.  See <list_awsec2_instances>.
+    """
+    _ec2_client.terminate_instances(InstanceIds=[instanceId])
+
+def terminate_all_instances():
+    """
+    Manually terminate all AWS EC2 instances managed by crimpl.
+    """
+    for instanceId in list_awsec2_instances().keys():
+        terminate_awsec2_instance(instanceId)
+
+class AWSEC2Job(_common.ServerJob):
+    def __init__(self, server, job_name=None, connect_to_existing=None,
+                 nprocs=None, InstanceType=None,
+                 ImageId='ami-03d315ad33b9d49c4', username='ubuntu',
+                 start=False):
+        """
+
 
         Arguments
         -------------
         * `server`
         * `job_name`
-        * `directory`
         * `connect_to_existing` (bool, optional, default=None): NOT YET IMPLEMENTED
+        * `nprocs`
+        * `InstanceType`
+        * `ImageId`
+        * `username`
+        * `start`
         """
-        super().__init__(server, job_name, directory, connect_to_existing)
+        if not _boto3_installed:
+            raise ImportError("boto3 and \"aws config\" required for {}".format(self.__class__.__name__))
+
+        # TODO: think about where nprocs should be defined.  We need it **BY**
+        # the first call to start, but it might be nice to allow it to be passed
+        # to run/submit_script to be consistent with RemoteSlurmJob.  Or we could
+        # require nprocs for RemoteSlurmJob on init.
+        # So crimpl.RemoteSlurm('terra').new_job(nprocs=...).submit_job(...)
+
+        if connect_to_existing is None:
+            if job_name is None:
+                connect_to_existing = False
+            else:
+                connect_to_existing = True
+
+        # TODO: try to use self.existing_jobs (which requires ssh) if a server is currently running?
+        # otherwise we have to worry here about completed/cancelled/failed jobs not showing up in the list
+        # in the case of a completed/cancelled/failed job with no running instance, we still want to allow connect_to_existing, we just want to set instanceId to None to a new one is created instead
+        job_matches_running = [d for d in list_awsec2_instances().values() if d['crimpl.level'] == 'job' and d['crimpl.server_name'] == server.server_name and (d['crimpl.job_name'] == job_name or job_name is None)]
+
+        if connect_to_existing:
+            if len(job_matches) == 1:
+                instanceId = job_matches[0]['instanceId']
+                job_name = job_matches[0]['crimpl.job_name']
+            elif len(job_matches) > 1:
+                raise ValueError("{} running jobs found on {} server.  Provide job_name or create a new job".format(len(job_matches), server.server_name))
+            else:
+                job_matches_all = [j for j in self.existing_jobs if j==job_name or job_name is None]
+                if len(job_matches) == 1:
+                    instanceId = None
+                else:
+                    raise ValueError("{} total matching jobs found on {} server.  Please provide job_name or create a new job".format(len(job_matches), server.server_name))
+        else:
+            instanceId = None
+            if job_name is None:
+                job_name = _common._new_job_name()
+            elif len(job_matches):
+                raise ValueError("job_name={} already exists on {} server".format(job_name, server.server_name))
+
+            # technically we should check this, but that requires launching the instance... can we instead check it before creating the directory?
+            # else:
+                # job_matches_all = [j for j in self.existing_jobs if j==job_name or job_name is None]
+                # if len(job_matches_all):
+                    # raise ValueError("job_name={} already exists on {} server".format(job_name, server.server_name))
+
+
+        self._instanceId = instanceId
+        self._username = username
+
+        if nprocs is not None:
+            if InstanceType is not None:
+                raise ValueError("cannot provide both nprocs and instanceType")
+            InstanceType = _get_ec2_instance_type(nprocs=nprocs)
+
+        super().__init__(server, job_name)
+
+
+        self._ec2_init_kwargs = {'InstanceType': InstanceType,
+                                 'ImageId': ImageId,
+                                 'KeyName': self.server._ec2_init_kwargs.get('KeyName'),
+                                 'SubnetId': self.server._ec2_init_kwargs.get('SubnetId'),
+                                 'SecurityGroupIds': self.server._ec2_init_kwargs.get('SecurityGroupIds'),
+                                 'MaxCount': 1,
+                                 'MinCount': 1,
+                                 'InstanceInitiatedShutdownBehavior': 'terminate'}
+
+        if start:
+            return self.start()  # wait is always True
 
     def __repr__(self):
-        return "<AWSEC2Job job_name={}>".format(self.job_name)
+        return "<AWSEC2Job job_name={}, instanceId={}>".format(self.job_name, self.instanceId)
 
-    def _submit_script_cmds(self, script, files, stop_on_complete, use_screen):
+    @property
+    def state(self):
+        """
+        Current state of the **job** EC2 instance.  Can be one of:
+        * pending
+        * running
+        * shutting-down
+        * terminated
+        * stopping
+        * stopped
+
+        See also:
+        * <AWSEC2Server.state>
+
+        Returns
+        -----------
+        * (string)
+        """
+        if self._instanceId is None:
+            return 'not-started'
+
+        # pending, running, shutting-down, terminated, stopping, stopped
+        return self._instance.state['Name']
+
+    @property
+    def instanceId(self):
+        """
+        instanceId of the **job** EC2 instance.
+
+        Returns
+        -----------
+        * (string)
+        """
+        return self._instanceId
+
+    @property
+    def _instance(self):
+        return _ec2_resource.Instance(self._instanceId)
+
+    @property
+    def username(self):
+        """
+        Username on the **job** EC2 instance.
+
+        Returns
+        ------------
+        * (string)
+        """
+        return self._username
+
+    @property
+    def ip(self):
+        """
+        Public IP address of the **job** EC2 instance.
+
+        Returns
+        ------------
+        * (string)
+        """
+        return self._instance.public_ip_address
+
+    @property
+    def ssh_cmd(self):
+        """
+        ssh command to the **job** EC2 instance.
+
+        Returns
+        ----------
+        * (string): If the server is not yet started and <AWSEC2Job.ip> is not available,
+            the ip will be replaced with {ip}
+        """
+        try:
+            ip = self.ip
+        except:
+            ip = "{ip}"
+
+        return "ssh -i {} {}@{}".format(self.server._KeyFile, self.username, ip)
+
+    @property
+    def scp_cmd_to(self):
+        """
+        scp command to copy files to the server via the **job** EC2 instance.
+
+        Returns
+        ----------
+        * (string): command with "{}" placeholders for `local_path` and `server_path`.
+            If the server is not yet started and <AWSEC2Job.ip> is not available,
+            the ip will be replaced with {ip}
+        """
+        try:
+            ip = self.ip
+        except:
+            ip = "{ip}"
+
+        return "scp -i %s {local_path} %s@%s:{server_path}" % (self.server._KeyFile, self.username, ip)
+
+    @property
+    def scp_cmd_from(self):
+        """
+        scp command to copy files from the server via the **job** EC2 instance.
+
+        Returns
+        ----------
+        * (string): command with "{}" placeholders for `server_path` and `local_path`.
+            If the server is not yet started and <AWSEC2Job.ip> is not available,
+            the ip will be replaced with {ip}
+        """
+        try:
+            ip = self.ip
+        except:
+            ip = "{ip}"
+
+        return "scp -i %s %s@%s:{server_path} {local_path}" % (self.server._KeyFile, self.username, ip)
+
+    def wait_for_state(self, state, sleeptime=0.5):
+        """
+        Wait for the **job** EC2 instance to reach a specified state.
+
+        Arguments
+        ----------
+        * `state` (string): the desired state.
+        * `sleeptime` (float, optional, default): seconds to wait between
+            successive state checks.
+
+        Returns
+        ----------
+        * (string) <AWSEC2Job.state>
+        """
+        while self.state != state:
+            _sleep(sleeptime)
+        return self.state
+
+    def start(self):
+        """
+        Start the **job** EC2 instance.
+
+        A running EC2 instance charges per CPU-second.  See AWS pricing for more details.
+
+        Note that <AWSEC2.submit_script> will automatically start the instance
+        if not already manually started.
+
+        Arguments
+        -------------
+
+        Return
+        --------
+        * (string) <AWSEC2Job.state>
+        """
+        state = self.state
+        if state in ['running', 'pending']:
+            return
+        elif state in ['terminated', 'shutting-down', 'stopping']:
+            raise ValueError("cannot start: current state is {}".format(state))
+
+        if self.instanceId is None:
+            ec2_init_kwargs = self._ec2_init_kwargs.copy()
+            ec2_init_kwargs['TagSpecifications'] = [{'ResourceType': 'instance', 'Tags': [{'Key': 'crimpl.level', 'Value': 'job'}, {'Key': 'crimpl.job_name', 'Value': self.job_name}, {'Key': 'crimpl.server_name', 'Value': self.server.server_name}, {'Key': 'crimpl.version', 'Value': _common.__version__}]}]
+            response = _ec2_client.run_instances(**ec2_init_kwargs)
+            self._instanceId = response['Instances'][0]['InstanceId']
+        else:
+            response = _ec2_client.start_instances(InstanceIds=[self.instanceId], DryRun=False)
+
+        print("waiting for job EC2 instance to start...")
+        self._instance.wait_until_running()
+
+        # attach the volume
+        print("attaching server volume {} to job EC2 instance...".format(self.server.volumeId))
+        try:
+            response = _ec2_client.attach_volume(Device='/dev/sdh',
+                                                 InstanceId=self.instanceId,
+                                                 VolumeId=self.server.volumeId)
+        except Exception as e:
+            print("attaching server volume failed, stopping EC2 instance...")
+            self.stop()
+            raise e
+
+        print("waiting 30s for initialization checks to complete...")
+        _sleep(30)
+
+        print("mounting server volume on job EC2 instance...")
+        cmd = self.ssh_cmd + " \"sudo mkdir crimpl_server; {mkfs_cmd}sudo mount /dev/xvdh crimpl_server; sudo chown {username} crimpl_server; sudo chgrp {username} crimpl_server\"".format(username=self.username, mkfs_cmd="sudo mkfs -t xfs /dev/xvdh; " if self.server._volume_needs_format else "")
+
+        print("running: {}".format(cmd))
+        _os.system(cmd)
+        self.server._volume_needs_format = False
+
+        return self.state
+
+    def stop(self, wait=True):
+        """
+        Stop the **job** EC2 instance.
+
+        Once stopped, the EC2 instance can be restarted via <AWSEC2Job.start>.
+
+        A stopped EC2 instance still results in charges for the storage, but no longer
+        charges for the CPU time.  See AWS pricing for more details.
+
+        Arguments
+        -------------
+        * `wait` (bool, optional, default=True): whether to wait for the server
+            to reach a stopped <AWSEC2Job.state>.
+
+        Return
+        --------
+        * (string) <AWSEC2Job.state>
+        """
+        response = _ec2_client.stop_instances(InstanceIds=[self.instanceId], DryRun=False)
+        if wait:
+            print("waiting for job EC2 instance to stop...")
+            self._instance.wait_until_stopped()
+        return self.state
+
+    def terminate(self, wait=True):
+        """
+        Terminate the **job** EC2 instance.
+
+        Once terminated, the EC2 instance cannot be restarted, but will no longer
+        result in charges.  See also <AWSEC2Job.stop> and AWS pricing for more details.
+
+        Arguments
+        -------------
+        * `wait` (bool, optional, default=True): whether to wait for the server
+            to reach a terminated <AWSEC2Job.state>.
+
+        Return
+        --------
+        * (string) <AWSEC2Job.state>
+        """
+        response = _ec2_client.terminate_instances(InstanceIds=[self.instanceId], DryRun=False)
+        if wait:
+            print("waiting for job EC2 instance to terminate...")
+            self._instance.wait_until_terminated()
+        return self.state
+
+    def _submit_script_cmds(self, script, files, terminate_on_complete, use_screen):
         if isinstance(script, str):
             # TODO: allow for http?
             if not _os.path.isfile(script):
@@ -107,7 +458,7 @@ class AWSEC2Job(_common.ServerJob):
         # TODO: use tmp file instead
         f = open('crimpl_script.sh', 'w')
         f.write("\n".join(script))
-        if stop_on_complete:
+        if terminate_on_complete:
             f.write("\nsudo shutdown now")
         f.close()
 
@@ -117,21 +468,24 @@ class AWSEC2Job(_common.ServerJob):
             if not _os.path.isfile(f):
                 raise ValueError("cannot find file at {}".format(f))
 
-        mkdir_cmd = self.server.ssh_cmd+" \"mkdir -p {}\"".format(self.remote_directory)
+        mkdir_cmd = self.ssh_cmd+" \"mkdir -p {}\"".format(self.remote_directory)
 
-        scp_cmd = self.server.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.remote_directory)
+        scp_cmd = self.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.remote_directory)
 
-        cmd = self.server.ssh_cmd
+        cmd = self.ssh_cmd
         cmd += " \"cd {remote_directory}; chmod +x {script_name}; {screen} sh {script_name}\"".format(remote_directory=self.remote_directory, script_name="crimpl_script.sh", screen="screen -m -d " if use_screen else "")
 
         return [mkdir_cmd, scp_cmd, cmd]
 
     def run_script(self, script, files=[], trial_run=False):
         """
-        Run a script on the server, and wait for it to complete.
+        Run a script on the **job** server, and wait for it to complete.
 
-        See <AWSEC2.submit_script> to submit a script to leave running in the background
-        on the server.
+        See <AWSEC2Job.submit_script> to submit a script to leave running in the background.
+
+        For scripts that only require one processor and may take some time (i.e.
+        installation and setup script), consider using <AWSEC2Server.submit_script>
+        before initializing the **job** EC2 instance.
 
         Arguments
         ----------------
@@ -159,10 +513,10 @@ class AWSEC2Job(_common.ServerJob):
         * TypeError: if `script` or `files` are not valid types.
         * ValueError: if the files referened by `script` or `files` are not valid.
         """
-        if self.server.state != 'running' and not trial_run:
-            self.server.start(wait=True)
+        if self.state != 'running' and not trial_run:
+            self.start()  # wait is always True
 
-        cmds = self._submit_script_cmds(script, files, stop_on_complete=False, use_screen=False)
+        cmds = self._submit_script_cmds(script, files, terminate_on_complete=False, use_screen=False)
         if trial_run:
             return cmds
 
@@ -175,18 +529,18 @@ class AWSEC2Job(_common.ServerJob):
 
         return
 
-    def submit_script(self, script, files=[], stop_on_complete=True, trial_run=False):
+    def submit_script(self, script, files=[], terminate_on_complete=True, trial_run=False):
         """
         Submit a script to the server.
 
-        This will call <AWSEC2.start> and wait for
+        This will call <AWSEC2Job.start> and wait for
         the server to intialize if it is not already running.  Once running,
         `script` and `files` are copied to the server, and `script` is executed
         in a screen session at which point this method will return.
 
-        To check on any expected output files, call <AWSEC2.check_output>.
+        To check on any expected output files, call <AWSEC2Job.check_output>.
 
-        See <AWSEC2.run_script> to run a script and wait for it to complete.
+        See <AWSEC2Job.run_script> to run a script and wait for it to complete.
 
         Arguments
         ----------------
@@ -199,13 +553,12 @@ class AWSEC2Job(_common.ServerJob):
         * `files` (list, optional, default=[]): list of paths to additional files
             to copy to the server required in order to successfully execute
             `script`.
-        * `stop_on_complete` (bool, optional, default=True): whether to stop
+        * `terminate_on_complete` (bool, optional, default=True): whether to terminate
             the EC2 instance once `script` has completed.  This is useful for
             long jobs where you may not immediately be able to pull the results
-            as a stopped server costs significantly less than a running server.
-            If the server is stopped, it will be restarted when calling
-            <AWSEC2.check_output>, by manually calling <AWSEC2.start>, or can
-            still be terminated manually with <AWSEC2.terminate>.
+            to minimize costs.  In this case, the <AWSEC2Job.server> EC2 instance
+            will be restarted when calling <AWSEC2Job.check_output> with access
+            to the same storage volume.
         * `trial_run` (bool, optional, default=False): if True, the commands
             that would be sent to the server are returned but not executed
             (and the server is not started automatically - so these may include
@@ -221,10 +574,10 @@ class AWSEC2Job(_common.ServerJob):
         * TypeError: if `script` or `files` are not valid types.
         * ValueError: if the files referened by `script` or `files` are not valid.
         """
-        if self.server.state != 'running' and not trial_run:
-            self.server.start(wait=True)
+        if self.state != 'running' and not trial_run:
+            self.start() # wait is always True
 
-        cmds = self._submit_script_cmds(script, files, stop_on_complete=stop_on_complete, use_screen=True)
+        cmds = self._submit_script_cmds(script, files, terminate_on_complete=terminate_on_complete, use_screen=True)
         if trial_run:
             return cmds
 
@@ -239,8 +592,7 @@ class AWSEC2Job(_common.ServerJob):
 
     def check_output(self, server_path, local_path="./",
                      wait_for_output=False,
-                     restart_if_necessary=True,
-                     stop_if_restarted=True):
+                     terminate_if_server_started=False):
         """
         Attempt to copy a file back from the server.
 
@@ -250,13 +602,11 @@ class AWSEC2Job(_common.ServerJob):
         * `local_path` (string, optional, default="./"): local path to copy
             the retrieved file.
         * `wait_for_output` (bool, optional, default=False): NOT IMPLEMENTED
-        * `restart_if_necessary` (bool, optional, default=True): start the server
-            if it is not currently running.  This is particularly useful if
-            `stop_on_complete` was sent to <AWSEC2.submit_script>.
-        * `stop_if_restarted` (bool, optional, default=True): if `restart_if_necessary`
-            resulted in the need to start the server, then immediately stop it
-            again.  Note that the server must manually be terminated (at some point,
-            unless you're super rich) via <AWSEC2.terminate>.
+        * `terminate_if_server_started` (bool, optional, default=False): whether
+            the server EC2 instance should immediately be terminated if it
+            was started in order to retrieve the files from the volume.
+            The server EC2 instance can manually be terminated via
+            <AWSEC2Server.terminate>.
 
         Returns
         ----------
@@ -267,95 +617,184 @@ class AWSEC2Job(_common.ServerJob):
             raise NotImplementedError("wait_for_output not yet implemented")
 
         did_restart = False
-        if restart_if_necessary and self.server.state != 'running':
-            self.server.start(wait=True)
+        if self.state == 'running':
+            ec2_instance = self._instance
+            scp_cmd_from = self.scp_cmd_from
+        elif self.server.state == 'running':
+            ec2_instance = self.server._instance
+            scp_cmd_from = self.server.scp_cmd_from
+        else:
+            self.server.start()  # wait is always True
+            ec2_instance = self.server._instance
+            scp_cmd_from = self.server.scp_cmd_from
             did_restart = True
 
-        state = self.server.state
-        if state != 'running':
-            raise ValueError("cannot check output, current state: {}".format(state))
-
-        scp_cmd = self.server.scp_cmd_from.format(server_path=_os.path.join(self.remote_directory, server_path), local_path=local_path)
+        scp_cmd = scp_cmd_from.format(server_path=_os.path.join(self.remote_directory, server_path), local_path=local_path)
         # TODO: execute cmd, handle wait_for_output and also handle errors if stopped/terminated before getting results
         print("running: {}".format(scp_cmd))
         _os.system(scp_cmd)
 
-        if did_restart and stop_if_restarted:
-            self.server.stop()
+        if did_restart and terminate_if_server_started:
+            self.server.terminate()
 
 class AWSEC2Server(_common.Server):
     _JobClass = AWSEC2Job
-    def __init__(self, config, instanceId, username='ubuntu',
-                 directory=None, start=False):
-        # TODO: validate config
-        # if config is None:
-            # config =  AWSEC2Config(host, instanceId, username, directory)
+    def __init__(self, server_name=None, volumeId=None,
+                       instanceId=None,
+                       KeyFile=None, KeyName=None,
+                       SubnetId=None, SecurityGroupId=None):
+        """
+        Connect to an existing <AWSEC2Server> by `volumeId`.
+
+        To create a new server, use <AWSEC2Server.new> instead.
+        To load a server by name, use <AWSEC2Server.load> instead.
+
+
+        """
         if not _boto3_installed:
-            raise ImportError("boto3 required for {}".format(self.__class__.__name__))
+            raise ImportError("boto3 and \"aws config\" required for {}".format(self.__class__.__name__))
+
+        if volumeId is None and server_name is None:
+            raise ValueError("volumeId or server_name required.  To generate a new server, use new instead of __init__")
+
+        sdicts = list_awsec2_volumes()
+        server_match = [s for s in sdicts.values() if (s['volumeId']==volumeId or volumeId is None) and (s['crimpl.server_name']==server_name or server_name is None)]
+        if len(server_match) == 1:
+            server_name = server_match[0]['crimpl.server_name']
+            volumeId = server_match[0]['volumeId']
+        else:
+            raise ValueError("{} existing EC2 volumes matched with server_name={} and volumeId={}.  Use new instead of __init__ to generate a new server.".format(server_name, volume_id))
+
+        self._server_name = server_name
+        self._volumeId = volumeId
+
+        if instanceId is None:
+            # try to find a matching instance
+            server_match = [s for s in list_awsec2_instances().values() if s['crimpl.server_name'] == server_name]
+            if len(server_match):
+                instanceId = server_match[0]['instanceId']
+            # otherwise we can leave at None and a new 1-proc EC2 instance will be instantiated and instanceId assigned
+        else:
+            server_match = [s for s in list_awsec2_instances().values() if s['crimpl.server_name']==server_name and s['instanceId']==instanceId]
+            if len(server_match) != 1:
+                raise ValueError("{} existing EC2 instances matched with server_name={} and instanceId={}".format(server_name, instanceId))
 
         self._instanceId = instanceId
-        self._username = username
 
-        if instanceId is not None:
-            # will raise an error if instanceId not valid
-            self._instance
+        if KeyFile is None:
+            raise ValueError("KeyFile must not be None")
+        if not _os.path.isfile(_os.path.expanduser(KeyFile)):
+            raise ValueError("KeyFile does not point to a file")
 
-        super().__init__(config, directory)
+        self._KeyFile = KeyFile
 
-        if start:
-            return self.start()
+        if KeyName is None:
+            KeyName = _os.path.basename(KeyFile).split(".")[0]
+
+        self._ec2_init_kwargs = {'KeyName': KeyName,
+                                 'SubnetId': SubnetId,
+                                 'SecurityGroupIds': [SecurityGroupId],
+                                 'MaxCount': 1,
+                                 'MinCount': 1}
+
+        self._username = "ubuntu"
+
+        self._volume_needs_format = False
+
+        # directory here is fixed at the point of the mounted volume
+        super().__init__(directory="~/crimpl_server")
 
     @classmethod
-    def new(cls, config, nprocs=None,
-            InstanceType=None, ImageId='ami-03d315ad33b9d49c4',
-            username='ubuntu', directory=None, start=False):
-        """
-        Create a new EC2 instance.
+    def load(cls, name):
+        # TODO: support loading from saved cache by name
+        raise NotImplementedError()
 
-        To connect to an existing (running or stopped) instance, see <AWSEC2.__init__>.
+    @classmethod
+    def new(cls, server_name=None, volumeSize=4,
+            KeyFile=None, KeyName=None,
+            SubnetId=None, SecurityGroupId=None):
 
-        Arguments
-        ------------
-        * `config`
-        * `nprocs`
-        * `InstanceType`
-        * `ImageId`
-        * `username`
-        * `directory`
-        * `start`
-        """
 
-        if nprocs is not None:
-            if InstanceType is not None:
-                raise ValueError("cannot provide both nprocs and instanceType")
-            InstanceType = _get_ec2_instance_type(nprocs=nprocs)
+        # Multi-Attach is available in the following Regions only:
+        # For io2 volumes—us-east-2, eu-central-1, and ap-south-1.
+        # For io1 volumes—us-east-1, us-west-2, eu-west-1, and ap-northeast-2.
 
-        self = cls(config=config, instanceId=None, username=username, directory=directory, start=start)
+        # iops: The number of I/O operations per second (IOPS).
+        # The following are the supported values for each volume type:
+        # io1 : 100-64,000 IOPS
+        # io2 : 100-64,000 IOPS
+        # response = _ec2_client.create_volume(Size=volumeSize,
+        #                                      VolumeType='io1',
+        #                                      Iops=100,  # TODO: expose
+        #                                      MultiAttachEnabled=True,
+        #                                      AvailabilityZone='us-east-1a')  # TODO: expose
 
-        self._initialize_kwargs = {'InstanceType': InstanceType,
-                                   'ImageId': ImageId,
-                                   'KeyName': config.KeyName,
-                                   'SubnetId': config.SubnetId,
-                                   'SecurityGroupIds': [config.SecurityGroupId],
-                                   'MaxCount': 1,
-                                   'MinCount': 1}
 
+        if server_name is None:
+            # create a new server name
+            server_names = [d['crimpl.server_name'] for d in list_awsec2_volumes()]
+            server_name = 'awsec2{:02d}'.format(len(server_names)+1)
+
+        volume_init_kwargs = {'Size': volumeSize,
+                              'VolumeType': 'gp2',
+                              'AvailabilityZone': 'us-east-1a'}  # TODO: expose
+        volume_init_kwargs['TagSpecifications'] = [{'ResourceType': 'volume', 'Tags': [{'Key': 'crimpl.level', 'Value': 'server-volume'},
+                                                                                       {'Key': 'crimpl.server_name', 'Value': server_name},
+                                                                                       {'Key': 'crimpl.version', 'Value': _common.__version__}]}]
+
+        response = _ec2_client.create_volume(**volume_init_kwargs)
+
+        volumeId = response.get('VolumeId')
+
+        self = cls(server_name=server_name, volumeId=volumeId,
+                   KeyFile=KeyFile, KeyName=KeyName,
+                   SubnetId=SubnetId, SecurityGroupId=SecurityGroupId)
+
+        self._volume_needs_format = True
         return self
 
     def __repr__(self):
-        return "<AWSEC2Server instanceId={}>".format(self.instanceId)
+        return "<AWSEC2Server server_name={} volumeId={} instanceId={}>".format(self.server_name, self.volumeId, self.instanceId)
 
     @property
-    def config(self):
+    def server_name(self):
+        return self._server_name
+
+    @property
+    def volumeId(self):
+        return self._volumeId
+
+    @property
+    def _volume(self):
+        return _ec2_resource.Volume(self._volumeId)
+
+    def delete_volume(self):
         """
-        <RemoteSlurmConfig>
+
+        """
+        # TODO: check status of server, MUST be terminated
+        if self._instanceId is not None and self.state != 'terminated':
+            raise ValueError("server must be terminated before deleting volume")
+
+        # TODO: other checks?  Make sure NO instance is attached to the volume and raise helpful errors
+        print("deleting volume {}...".format(self.volumeId))
+        self._volume.delete()
+        self._volumeId = None
+
+    @property
+    def instanceId(self):
+        """
+        instanceId of the **server** EC2 instance.
 
         Returns
-        ----------
-        * <RemoteSlurmConfig>
+        -----------
+        * (string)
         """
+        return self._instanceId
 
-        return self._config
+    @property
+    def _instance(self):
+        return _ec2_resource.Instance(self._instanceId)
 
     @property
     def state(self):
@@ -378,37 +817,11 @@ class AWSEC2Server(_common.Server):
         # pending, running, shutting-down, terminated, stopping, stopped
         return self._instance.state['Name']
 
-    @property
-    def instanceId(self):
-        """
-        instanceId of the EC2 instance.  This string is necessary to re-connect
-        to an existing (running or stopped) server from a new <AWSEC2> instance.
-
-        Returns
-        -----------
-        * (string)
-        """
-        return self._instanceId
-
-    @property
-    def _instance(self):
-        return _ec2_resource.Instance(self._instanceId)
-
-    @property
-    def config(self):
-        """
-        <AWSEC2Config>
-
-        Returns
-        ----------
-        * <AWSEC2Config>
-        """
-        return self._config
 
     @property
     def username(self):
         """
-        Username on the server
+        Username on the **server** EC2 instance.
 
         Returns
         ------------
@@ -419,22 +832,34 @@ class AWSEC2Server(_common.Server):
     @property
     def ip(self):
         """
-        Public IP address of the server
+        Public IP address of the **server** EC2 instance, if its running, or one
+        of its children **job** EC2 instances, if availabl3.
 
         Returns
         ------------
         * (string)
         """
+        if self._instanceId is None or self.state != 'running':
+            # then try to fetch another valid instanceId that IS running
+            matching_ec2s = [d for d in list_awsec2_instances().values() if d['crimpl.server_name'] == self.server_name]
+            # now we want one that is RUNNING
+            for matching_ec2 in matching_ec2s:
+                instance = _ec2_resource.Instance(matching_ec2['instanceId'])
+                if instance.state['Name'] == 'running':
+                    return instance.public_ip_address
+
         return self._instance.public_ip_address
+
 
     @property
     def ssh_cmd(self):
         """
-        ssh command to the server
+        ssh command to the **server** EC2 instance (or a child **job** EC2 instance
+        if the **server** EC2 instance is not running).
 
         Returns
         ----------
-        * (string): If the server is not yet started and <AWSEC2.ip> is not available,
+        * (string): If the server is not yet started and <AWSEC2Server.ip> is not available,
             the ip will be replaced with {ip}
         """
         try:
@@ -442,17 +867,18 @@ class AWSEC2Server(_common.Server):
         except:
             ip = "{ip}"
 
-        return "ssh -i {} {}@{}".format(self.config.KeyFile, self.username, ip)
+        return "ssh -i {} {}@{}".format(self._KeyFile, self.username, ip)
 
     @property
     def scp_cmd_to(self):
         """
-        scp command to copy files to the server.
+        scp command to copy files to the **server** EC2 instance (or a child **job** EC2 instance
+        if the **server** EC2 instance is not running).
 
         Returns
         ----------
         * (string): command with "{}" placeholders for `local_path` and `server_path`.
-            If the server is not yet started and <AWSEC2.ip> is not available,
+            If the server is not yet started and <AWSEC2Server.ip> is not available,
             the ip will be replaced with {ip}
         """
         try:
@@ -460,17 +886,18 @@ class AWSEC2Server(_common.Server):
         except:
             ip = "{ip}"
 
-        return "scp -i %s {local_path} %s@%s:{server_path}" % (self.config.KeyFile, self.username, ip)
+        return "scp -i %s {local_path} %s@%s:{server_path}" % (self._KeyFile, self.username, ip)
 
     @property
     def scp_cmd_from(self):
         """
-        scp command to copy files from the server.
+        scp command to copy files from the **server** EC2 instance (or a child **job** EC2 instance
+        if the **server** EC2 instance is not running).
 
         Returns
         ----------
         * (string): command with "{}" placeholders for `server_path` and `local_path`.
-            If the server is not yet started and <AWSEC2.ip> is not available,
+            If the server is not yet started and <AWSEC2Server.ip> is not available,
             the ip will be replaced with {ip}
         """
         try:
@@ -478,11 +905,23 @@ class AWSEC2Server(_common.Server):
         except:
             ip = "{ip}"
 
-        return "scp -i %s %s@%s:{server_path} {local_path}" % (self.config.KeyFile, self.username, ip)
+        return "scp -i %s %s@%s:{server_path} {local_path}" % (self._KeyFile, self.username, ip)
+
+    def create_job(self, job_name=None, nprocs=4,
+                   InstanceType=None,
+                   ImageId='ami-03d315ad33b9d49c4', username='ubuntu',
+                   start=False):
+        """
+        """
+        return self._JobClass(server=self, job_name=job_name,
+                              nprocs=nprocs, InstanceType=InstanceType,
+                              ImageId=ImageId, username=username,
+                              start=start)#, connect_to_existing=False)
+
 
     def wait_for_state(self, state, sleeptime=0.5):
         """
-        Wait for the server to reach a specified state.
+        Wait for the **server** EC2 instance to reach a specified state.
 
         Arguments
         ----------
@@ -492,31 +931,26 @@ class AWSEC2Server(_common.Server):
 
         Returns
         ----------
-        * (string) <AWSEC2.state>
+        * (string) <AWSEC2Server.state>
         """
         while self.state != state:
             _sleep(sleeptime)
         return self.state
 
-    def start(self, wait=True):
+    def start(self):
         """
-        Start the server.
+        Start the **server** EC2 instance.
 
-        A running server charges per CPU-second.  See AWS pricing for more details.
+        A running EC2 instance charges per CPU-second.  See AWS pricing for more details.
 
-        Note that <AWSEC2.submit_script> will automatically start the server
-        if not already manually started.
 
         Arguments
         -------------
-        * `wait` (bool, optional, default=False): whether to wait for the server
-            to reach a running <AWSEC2.state> (and an additional 30 seconds
-            to allow for initialization checks to complete and for the server
-            to be ready for commands).
+
 
         Return
         --------
-        * (string) <AWSEC2.state>
+        * (string) <AWSEC2Server.state>
         """
         state = self.state
         if state in ['running', 'pending']:
@@ -525,63 +959,185 @@ class AWSEC2Server(_common.Server):
             raise ValueError("cannot start: current state is {}".format(state))
 
         if self.instanceId is None:
-            response = _ec2_client.run_instances(**self._initialize_kwargs)
+            ec2_init_kwargs = self._ec2_init_kwargs.copy()
+            ec2_init_kwargs['InstanceType'] = _get_ec2_instance_type(nprocs=1)
+            ec2_init_kwargs['ImageId'] = 'ami-03d315ad33b9d49c4' # Ubuntu 20.04 - provide option for this?
+            ec2_init_kwargs['TagSpecifications'] = [{'ResourceType': 'instance', 'Tags': [{'Key': 'crimpl.level', 'Value': 'server'}, {'Key': 'crimpl.server_name', 'Value': self.server_name}, {'Key': 'crimpl.volumeId', 'Value': self.volumeId}, {'Key': 'crimpl.version', 'Value': _common.__version__}]}]
+            response = _ec2_client.run_instances(**ec2_init_kwargs)
             self._instanceId = response['Instances'][0]['InstanceId']
         else:
-            response = _ec2_client.start_instances(InstanceIds=[self.instanceId], DryRun=False)
+            response = _ec2_client.start_instances(InstanceIds=[self.instanceId])
 
-        if wait:
-            print("waiting for EC2 instance to start...")
-            self._instance.wait_until_running()
-            # TODO: wait for status checks?
-            print("waiting 30s for initialization checks to complete...")
-            _sleep(30)
+        self._username = "ubuntu" # assumed - provide option for this?
+
+        print("waiting for server EC2 instance to start before attaching server volume...")
+        self._instance.wait_until_running()
+
+        # attach the volume
+        print("attaching server volume {}...".format(self.volumeId))
+
+
+        # TODO: test if already attached anywhere else (possibly an instance stopped via sudo shutdown) and detach.
+        # Or we could change shutdown behavior on the workers to terminate which should release them
+
+        try:
+            response = _ec2_client.attach_volume(Device='/dev/sdh',
+                                                 InstanceId=self.instanceId,
+                                                 VolumeId=self.volumeId)
+        except Exception as e:
+            print("attaching server volume failed, stopping EC2 instance...")
+            self.stop()
+            raise e
+
+        print("waiting 30s for initialization checks to complete...")
+        _sleep(30)
+
+        print("mounting volume on server EC2 instance...")
+        cmd = self.ssh_cmd + " \"sudo mkdir crimpl_server; {mkfs_cmd}sudo mount /dev/xvdh crimpl_server; sudo chown {username} crimpl_server; sudo chgrp {username} crimpl_server\"".format(username=self.username, mkfs_cmd="sudo mkfs -t xfs /dev/xvdh; " if self._volume_needs_format else "")
+        print("running: {}".format(cmd))
+        _os.system(cmd)
+        self._volume_needs_format = False
 
         return self.state
 
-    def stop(self, wait=False):
+    def stop(self, wait=True):
         """
-        Stop the server.
+        Stop the **server** EC2 instance.
 
-        Once stopped, the server can be restarted via <AWSEC2.start>, including
-        by creating a new <AWSEC2> instance with the correct <AWSEC2.instanceId>.
+        Once stopped, the EC2 instance can be restarted via <AWSEC2Server.start>, including
+        by creating a new <AWSEC2Server> instance with the correct <AWSEC2Server.instanceId>.
 
-        A stopped server still results in charges for the storage, but no longer
+        A stopped EC2 instance still results in charges for the storage, but no longer
         charges for the CPU time.  See AWS pricing for more details.
 
         Arguments
         -------------
-        * `wait` (bool, optional, default=False): whether to wait for the server
-            to reach a stopped <AWSEC2.state>.
+        * `wait` (bool, optional, default=True): whether to wait for the server
+            to reach a stopped <AWSEC2Server.state>.
 
         Return
         --------
-        * (string) <AWSEC2.state>
+        * (string) <AWSEC2Server.state>
         """
         response = _ec2_client.stop_instances(InstanceIds=[self.instanceId], DryRun=False)
         if wait:
-            print("waiting for EC2 instance to stop...")
+            print("waiting for server EC2 instance to stop...")
             self._instance.wait_until_stopped()
         return self.state
 
-    def terminate(self, wait=False):
+    def terminate(self, wait=True, delete_volume=False):
         """
-        Terminate the server.
+        Terminate the **server** EC2 instance.
 
-        Once terminated, the server cannot be restarted, but will no longer
-        result in charges.  See also <AWSEC2.stop> and AWS pricing for more details.
+        Once terminated, the EC2 instance cannot be restarted, but will no longer
+        result in charges.  See also <AWSEC2Server.stop> and AWS pricing for more details.
 
         Arguments
         -------------
-        * `wait` (bool, optional, default=False): whether to wait for the server
-            to reach a terminated <AWSEC2.state>.
+        * `wait` (bool, optional, default=True): whether to wait for the server
+            to reach a terminated <AWSEC2Server.state>.
 
         Return
         --------
-        * (string) <AWSEC2.state>
+        * (string) <AWSEC2Server.state>
         """
         response = _ec2_client.terminate_instances(InstanceIds=[self.instanceId], DryRun=False)
-        if wait:
-            print("waiting for EC2 instance to terminate...")
+        if wait or delete_volume:
+            print("waiting for server EC2 instance to terminate...")
             self._instance.wait_until_terminated()
+
+        self._instanceId = None
+
+        if delete_volume:
+            _sleep(2)
+            self.delete_volume()
+
         return self.state
+
+    def _submit_script_cmds(self, script, files):
+        if isinstance(script, str):
+            # TODO: allow for http?
+            if not _os.path.isfile(script):
+                raise ValueError("cannot find valid script at {}".format(script))
+
+            f = open(script, 'r')
+            script = script.readlines()
+
+        if not isinstance(script, list):
+            raise TypeError("script must be of type string (path) or list (list of commands)")
+
+        # TODO: use tmp file instead
+        f = open('crimpl_script.sh', 'w')
+        f.write("\n".join(script))
+        f.close()
+
+        if not isinstance(files, list):
+            raise TypeError("files must be of type list")
+        for f in files:
+            if not _os.path.isfile(f):
+                raise ValueError("cannot find file at {}".format(f))
+
+        mkdir_cmd = self.ssh_cmd+" \"mkdir -p {}\"".format(self.directory)
+
+        scp_cmd = self.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.directory)
+
+        cmd = self.ssh_cmd
+        cmd += " \"cd {remote_directory}; chmod +x {script_name}; sh {script_name}\"".format(remote_directory=self.directory, script_name="crimpl_script.sh")
+
+        return [mkdir_cmd, scp_cmd, cmd]
+
+    def run_script(self, script, files=[], trial_run=False):
+        """
+        Run a script on the **server** EC2 instance (single processor),
+        and wait for it to complete.
+
+        The files are copied and executed in <AWSEC2Server.directory> directly
+        (whereas <AWSEC2Job> scripts are executed in subdirectories).
+
+        This is useful for installation scripts, setting up virtual environments,
+        etc, as the **server** EC2 instance only runs a single processor.  Once
+        complete, setup a job with <AWSEC2Server.create_job> or <AWSEC2Server.get_job>
+        to submit the compute job on more resources (via <AWSEC2Job.run_script>
+        or <AWSEC2.submit_script>).
+
+        Arguments
+        ----------------
+        * `script` (string or list): shell script to run on the remote server,
+            including any necessary installation steps.  Note that the script
+            can call any other scripts in `files`.  If a string, must be the
+            path of a valid file which will be copied to the server.  If a list,
+            must be a list of commands (i.e. a newline will be placed between
+            each item in the list and sent as a single script to the server).
+        * `files` (list, optional, default=[]): list of paths to additional files
+            to copy to the server required in order to successfully execute
+            `script`.
+        * `trial_run` (bool, optional, default=False): if True, the commands
+            that would be sent to the server are returned but not executed
+            (and the server is not started automatically - so these may include
+            an <ip> placeholder).
+
+
+        Returns
+        ------------
+        * None
+
+        Raises
+        ------------
+        * TypeError: if `script` or `files` are not valid types.
+        * ValueError: if the files referened by `script` or `files` are not valid.
+        """
+        if self.state != 'running' and not trial_run:
+            self.start()  # wait is always True
+
+        cmds = self._submit_script_cmds(script, files)
+        if trial_run:
+            return cmds
+
+        for cmd in cmds:
+            print("running: {}".format(cmd))
+
+            # TODO: get around need to add IP to known hosts (either by
+            # expecting and answering yes, or by looking into subnet options)
+            _os.system(cmd)
+
+        return
