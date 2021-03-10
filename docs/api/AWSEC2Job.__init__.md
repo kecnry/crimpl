@@ -12,7 +12,10 @@ def __init__(self, server, job_name=None, connect_to_existing=None, nprocs=None,
 Arguments
 -------------
 * `server`
-* `job_name`
+* `job_name` (string, optional, default=None): name for this job instance.
+    If not provided, one will be created from the current datetime and
+    accessible through [RemoteSlurmJob.job_name](RemoteSlurmJob.job_name.md).  This `job_name` will
+    be necessary to reconnect to a previously submitted job.
 * `connect_to_existing` (bool, optional, default=None): NOT YET IMPLEMENTED
 * `nprocs`
 * `InstanceType`

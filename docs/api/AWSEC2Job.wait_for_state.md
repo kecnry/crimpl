@@ -3,7 +3,7 @@
 
 ```py
 
-def wait_for_state(self, state, sleeptime=0.5)
+def wait_for_state(self, state='running', sleeptime=0.5)
 
 ```
 
@@ -13,7 +13,8 @@ Wait for the **job** EC2 instance to reach a specified state.
 
 Arguments
 ----------
-* `state` (string): the desired state.
+* `state` (string or list, optional, default='running'): state or states
+    to exit the wait loop.
 * `sleeptime` (float, optional, default): seconds to wait between
     successive state checks.
 

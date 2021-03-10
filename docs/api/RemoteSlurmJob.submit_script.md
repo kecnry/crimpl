@@ -3,7 +3,7 @@
 
 ```py
 
-def submit_script(self, script, files=[], job_name=None, nprocs=4, walltime='2-00:00:00', mail_type='END,FAIL', mail_user=None, wait_for_job_status=False, trial_run=False)
+def submit_script(self, script, files=[], job_name=None, nprocs=None, walltime='2-00:00:00', mail_type='END,FAIL', mail_user=None, wait_for_job_status=False, trial_run=False)
 
 ```
 
@@ -37,8 +37,10 @@ Arguments
 * `job_name` (string, optional, default=None): name of the job within slurm.
     Prepended to `script` as "#SBATCH -J jobname".  Defaults to
     [RemoteSlurmJob.job_name](RemoteSlurmJob.job_name.md).
-* `nprocs` (int, optional, default=4): number of processors to run the
-    job.  Prepended to `script` as "#SBATCH -n nprocs".
+* `nprocs` (int, optional, default=None): number of processors to run the
+    job.  Prepended to `script` as "#SBATCH -n nprocs".  If None, will
+    default to the `nprocs` set when creating the [RemoteSlurmJob](RemoteSlurmJob.md) instance.
+    See [RemoteSlurmJob.nprocs](RemoteSlurmJob.nprocs.md).
 * `walltime` (string, optional, default='2-00:00:00'): maximum walltime
     to schedule the job.  Prepended to `script` as "#SBATCH -t walltime".
 * `mail_type` (string, optional, default='END,FAIL'): conditions to notify
@@ -53,7 +55,7 @@ Arguments
 
 Returns
 ------------
-* (int): [RemoteSlurmJob.slurm_id](RemoteSlurmJob.slurm_id.md)
+* [RemoteSlurmJob](RemoteSlurmJob.md)
 
 Raises
 ------------

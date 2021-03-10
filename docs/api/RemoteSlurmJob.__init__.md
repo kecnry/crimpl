@@ -3,7 +3,7 @@
 
 ```py
 
-def __init__(self, server=None, job_name=None, slurm_id=None, connect_to_existing=None)
+def __init__(self, server=None, job_name=None, nprocs=4, slurm_id=None, connect_to_existing=None)
 
 ```
 
@@ -25,6 +25,8 @@ Arguments
     If not provided, one will be created from the current datetime and
     accessible through [RemoteSlurmJob.job_name](RemoteSlurmJob.job_name.md).  This `job_name` will
     be necessary to reconnect to a previously submitted job.
+* `nprocs` (int, optional, default=4): default number of procs to use
+    when calling [RemoteSlurmJob.submit_job](RemoteSlurmJob.submit_job.md)
 * `slurm_id` (int, optional, default=None): internal id of the remote
     slurm job.  If unknown, this will be determined automatically.
     Do **NOT** set `slurm_id` for a new [RemoteSlurmJob](RemoteSlurmJob.md) instance.

@@ -48,7 +48,7 @@ Arguments
 
 Returns
 ------------
-* None
+* &lt;AWSEC2Job&gt;
 
 Raises
 ------------

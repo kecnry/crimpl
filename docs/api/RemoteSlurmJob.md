@@ -4,6 +4,7 @@
 * [check_output](RemoteSlurmJob.check_output.md)
 * [job_name](RemoteSlurmJob.job_name.md)
 * [job_status](RemoteSlurmJob.job_status.md)
+* [nprocs](RemoteSlurmJob.nprocs.md)
 * [remote_directory](RemoteSlurmJob.remote_directory.md)
 * [run_script](RemoteSlurmJob.run_script.md)
 * [server](RemoteSlurmJob.server.md)

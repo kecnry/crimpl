@@ -3,5 +3,9 @@
 
 
 
-        
+Access the **job** subdirectory location on the remote server.
+
+Returns
+----------
+* (string)
 

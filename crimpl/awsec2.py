@@ -18,21 +18,21 @@ else:
 
 def _get_ec2_instance_type(nprocs):
     if nprocs < 2:
-        return "t2.micro"
+        return "t2.micro", 2
     elif nprocs < 4:
-        return "t2.medium"
+        return "t2.medium", 4
     elif nprocs < 8:
-        return "t2.xlarge"
+        return "t2.xlarge", 8
     elif nprocs < 16:
-        return "t3.2xlarge"
+        return "t3.2xlarge", 16
     elif nprocs < 36:
-        return "c4.4xlarge"
+        return "c4.4xlarge", 36
     elif nprocs < 58:
-        return "c5.9xlarge"
+        return "c5.9xlarge", 58
     elif nprocs < 72:
-        return "c5.18xlarge"
+        return "c5.18xlarge", 72
     elif nprocs == 96:
-        return "c5.24xlarge"
+        return "c5.24xlarge", 96
     else:
         raise ValueError("no known instanceType for nprocs={}".format(nprocs))
 
@@ -131,7 +131,10 @@ class AWSEC2Job(_common.ServerJob):
         Arguments
         -------------
         * `server`
-        * `job_name`
+        * `job_name` (string, optional, default=None): name for this job instance.
+            If not provided, one will be created from the current datetime and
+            accessible through <RemoteSlurmJob.job_name>.  This `job_name` will
+            be necessary to reconnect to a previously submitted job.
         * `connect_to_existing` (bool, optional, default=None): NOT YET IMPLEMENTED
         * `nprocs`
         * `InstanceType`
@@ -191,7 +194,9 @@ class AWSEC2Job(_common.ServerJob):
         if nprocs is not None:
             if InstanceType is not None:
                 raise ValueError("cannot provide both nprocs and instanceType")
-            InstanceType = _get_ec2_instance_type(nprocs=nprocs)
+            InstanceType, nprocs = _get_ec2_instance_type(nprocs=nprocs)
+
+        self._nprocs = nprocs
 
         super().__init__(server, job_name, job_submitted=connect_to_existing)
 
@@ -210,6 +215,17 @@ class AWSEC2Job(_common.ServerJob):
 
     def __repr__(self):
         return "<AWSEC2Job job_name={}, instanceId={}>".format(self.job_name, self.instanceId)
+
+    @property
+    def nprocs(self):
+        """
+        Number of processors available on the **job** EC2 instance.
+
+        Returns
+        ---------
+        * (int)
+        """
+        return self._nprocs
 
     @property
     def state(self):
@@ -325,13 +341,14 @@ class AWSEC2Job(_common.ServerJob):
 
         return "scp -i %s %s@%s:{server_path} {local_path}" % (self.server._KeyFile, self.username, ip)
 
-    def wait_for_state(self, state, sleeptime=0.5):
+    def wait_for_state(self, state='running', sleeptime=0.5):
         """
         Wait for the **job** EC2 instance to reach a specified state.
 
         Arguments
         ----------
-        * `state` (string): the desired state.
+        * `state` (string or list, optional, default='running'): state or states
+            to exit the wait loop.
         * `sleeptime` (float, optional, default): seconds to wait between
             successive state checks.
 
@@ -339,7 +356,10 @@ class AWSEC2Job(_common.ServerJob):
         ----------
         * (string) <AWSEC2Job.state>
         """
-        while self.state != state:
+        if isinstance(state, string):
+            state = [state]
+
+        while self.state not in state:
             _sleep(sleeptime)
         return self.state
 
@@ -980,11 +1000,33 @@ class AWSEC2Server(_common.Server):
                    ImageId='ami-03d315ad33b9d49c4', username='ubuntu',
                    start=False):
         """
+        Create a child <AWSEC2Job> instance.
+
+        Arguments
+        -----------
+        * `job_name` (string, optional, default=None): name for this job instance.
+            If not provided, one will be created from the current datetime and
+            accessible through <AWSEC2Job.job_name>.  This `job_name` will
+            be necessary to reconnect to a previously submitted job.
+        * `nprocs` (int, optional, default=4): number of processors for the
+            **job** EC2 instance.  The `InstanceType` will be determined and
+            `nprocs` will be rounded up to the next available instance meeting
+            those available requirements.
+        * `InstanceType` (string, optional, default=None):
+        * `ImageId` (string, optional, default='ami-03d315ad33b9d49c4'):
+        * `username` (string, optional, default='ubuntu'): username required
+            to log in to the **job** EC2 instance.
+        * `start` (bool, optional, default=False): whether to immediately start
+            the **job** EC2 instance.
+
+        Returns
+        ----------
+        * <AWSEC2Job>
         """
         return self._JobClass(server=self, job_name=job_name,
                               nprocs=nprocs, InstanceType=InstanceType,
                               ImageId=ImageId, username=username,
-                              start=start)#, connect_to_existing=False)
+                              start=start, connect_to_existing=False)
 
 
     def wait_for_state(self, state='running', sleeptime=0.5):
@@ -1006,7 +1048,7 @@ class AWSEC2Server(_common.Server):
             state = [state]
         while self.state not in state:
             _sleep(sleeptime)
-        return state
+        return self.state
 
     def start(self):
         """
@@ -1031,7 +1073,7 @@ class AWSEC2Server(_common.Server):
 
         if self.instanceId is None:
             ec2_init_kwargs = self._ec2_init_kwargs.copy()
-            ec2_init_kwargs['InstanceType'] = _get_ec2_instance_type(nprocs=1)
+            ec2_init_kwargs['InstanceType'], nprocs = _get_ec2_instance_type(nprocs=1)
             ec2_init_kwargs['ImageId'] = 'ami-03d315ad33b9d49c4' # Ubuntu 20.04 - provide option for this?
             ec2_init_kwargs['TagSpecifications'] = [{'ResourceType': 'instance', 'Tags': [{'Key': 'crimpl.level', 'Value': 'server'}, {'Key': 'crimpl.server_name', 'Value': self.server_name}, {'Key': 'crimpl.volumeId', 'Value': self.volumeId}, {'Key': 'crimpl.version', 'Value': _common.__version__}]}]
             response = _ec2_client.run_instances(**ec2_init_kwargs)

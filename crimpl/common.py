@@ -142,4 +142,4 @@ class ServerJob(object):
 
         while self.job_status not in status:
             _sleep(sleeptime)
-        return status
+        return self.job_status

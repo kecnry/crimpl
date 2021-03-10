@@ -7,7 +7,8 @@ from . import common as _common
 
 class RemoteSlurmJob(_common.ServerJob):
     def __init__(self, server=None,
-                 job_name=None, slurm_id=None, connect_to_existing=None):
+                 job_name=None, nprocs=4,
+                 slurm_id=None, connect_to_existing=None):
         """
         Create and submit a job on a <RemoteSlurmServer>.
 
@@ -25,6 +26,8 @@ class RemoteSlurmJob(_common.ServerJob):
             If not provided, one will be created from the current datetime and
             accessible through <RemoteSlurmJob.job_name>.  This `job_name` will
             be necessary to reconnect to a previously submitted job.
+        * `nprocs` (int, optional, default=4): default number of procs to use
+            when calling <RemoteSlurmJob.submit_job>
         * `slurm_id` (int, optional, default=None): internal id of the remote
             slurm job.  If unknown, this will be determined automatically.
             Do **NOT** set `slurm_id` for a new <RemoteSlurmJob> instance.
@@ -59,11 +62,23 @@ class RemoteSlurmJob(_common.ServerJob):
             elif len(job_matches):
                 raise ValueError("job_name={} already exists on {} server".format(job_name, server.server_name))
 
+        self._nprocs = nprocs
 
         super().__init__(server, job_name, job_submitted=connect_to_existing)
 
     def __repr__(self):
         return "<RemoteSlurmJob job_name={}>".format(self.job_name)
+
+    @property
+    def nprocs(self):
+        """
+        Default number of processors to use when calling <RemoteSlurm.submit_job>.
+
+        Returns
+        ---------
+        * (int)
+        """
+        return self._nprocs
 
     @property
     def slurm_id(self):
@@ -281,7 +296,7 @@ class RemoteSlurmJob(_common.ServerJob):
 
     def submit_script(self, script, files=[],
                       job_name=None,
-                      nprocs=4,
+                      nprocs=None,
                       walltime='2-00:00:00',
                       mail_type='END,FAIL',
                       mail_user=None,
@@ -316,8 +331,10 @@ class RemoteSlurmJob(_common.ServerJob):
         * `job_name` (string, optional, default=None): name of the job within slurm.
             Prepended to `script` as "#SBATCH -J jobname".  Defaults to
             <RemoteSlurmJob.job_name>.
-        * `nprocs` (int, optional, default=4): number of processors to run the
-            job.  Prepended to `script` as "#SBATCH -n nprocs".
+        * `nprocs` (int, optional, default=None): number of processors to run the
+            job.  Prepended to `script` as "#SBATCH -n nprocs".  If None, will
+            default to the `nprocs` set when creating the <RemoteSlurmJob> instance.
+            See <RemoteSlurmJob.nprocs>.
         * `walltime` (string, optional, default='2-00:00:00'): maximum walltime
             to schedule the job.  Prepended to `script` as "#SBATCH -t walltime".
         * `mail_type` (string, optional, default='END,FAIL'): conditions to notify
@@ -344,6 +361,9 @@ class RemoteSlurmJob(_common.ServerJob):
         """
         if self._slurm_id is not None:
             raise ValueError("a job is already submitted.  Use a new instance to run multiple jobs, or call release_job() to stop tracking slurm_id={}".format(self.slurm_id))
+
+        if nprocs is None:
+            nprocs = self.nprocs
 
         cmds = self._submit_script_cmds(script, files, use_slurm=True,
                                         job_name=job_name if job_name is not None else self.job_name,
@@ -514,6 +534,26 @@ class RemoteSlurmServer(_common.Server):
         * (string)
         """
         return _subprocess.check_output(self.ssh_cmd+" \"ls\"", shell=True).decode('utf-8').strip()
+
+    def create_job(self, job_name=None, nprocs=4):
+        """
+        Create a child <RemoteSlurmJob> instance.
+
+        Arguments
+        -----------
+        * `job_name` (string, optional, default=None): name for this job instance.
+            If not provided, one will be created from the current datetime and
+            accessible through <RemoteSlurmJob.job_name>.  This `job_name` will
+            be necessary to reconnect to a previously submitted job.
+        * `nprocs` (int, optional, default=4): default number of procs to use
+            when calling <RemoteSlurmJob.submit_job>
+
+        Returns
+        ---------
+        * <RemoteSlurmJob>
+        """
+        return self._JobClass(server=self, job_name=job_name,
+                              nprocs=nprocs, connect_to_existing=False)
 
     def _submit_script_cmds(self, script, files):
         if isinstance(script, str):

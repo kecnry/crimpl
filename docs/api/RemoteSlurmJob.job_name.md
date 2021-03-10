@@ -3,5 +3,9 @@
 
 
 
-        
+Access the job name
+
+Returns
+----------
+* (string)
 

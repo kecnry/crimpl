@@ -6,6 +6,7 @@
 * [ip](AWSEC2Job.ip.md)
 * [job_name](AWSEC2Job.job_name.md)
 * [job_status](AWSEC2Job.job_status.md)
+* [nprocs](AWSEC2Job.nprocs.md)
 * [remote_directory](AWSEC2Job.remote_directory.md)
 * [run_script](AWSEC2Job.run_script.md)
 * [scp_cmd_from](AWSEC2Job.scp_cmd_from.md)
