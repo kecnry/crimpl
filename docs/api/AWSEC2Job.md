@@ -5,6 +5,7 @@
 * [instanceId](AWSEC2Job.instanceId.md)
 * [ip](AWSEC2Job.ip.md)
 * [job_name](AWSEC2Job.job_name.md)
+* [job_status](AWSEC2Job.job_status.md)
 * [remote_directory](AWSEC2Job.remote_directory.md)
 * [run_script](AWSEC2Job.run_script.md)
 * [scp_cmd_from](AWSEC2Job.scp_cmd_from.md)
@@ -17,4 +18,5 @@
 * [submit_script](AWSEC2Job.submit_script.md)
 * [terminate](AWSEC2Job.terminate.md)
 * [username](AWSEC2Job.username.md)
+* [wait_for_job_status](AWSEC2Job.wait_for_job_status.md)
 * [wait_for_state](AWSEC2Job.wait_for_state.md)

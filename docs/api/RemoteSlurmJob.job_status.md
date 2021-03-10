@@ -1,4 +1,4 @@
-### [RemoteSlurmJob](RemoteSlurmJob.md).status (property)
+### [RemoteSlurmJob](RemoteSlurmJob.md).job_status (property)
 
 
 
@@ -11,5 +11,5 @@ completed (although in reality, it may have failed or been canceled).
 
 Returns
 -----------
-* (string)
+* (string): one of not-submitted, pending, running, canceled, failed, complete, unknown
 

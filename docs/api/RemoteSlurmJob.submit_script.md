@@ -3,7 +3,7 @@
 
 ```py
 
-def submit_script(self, script, files=[], job_name=None, nprocs=4, walltime='2-00:00:00', mail_type='END,FAIL', mail_user=None, trial_run=False)
+def submit_script(self, script, files=[], job_name=None, nprocs=4, walltime='2-00:00:00', mail_type='END,FAIL', mail_user=None, wait_for_job_status=False, trial_run=False)
 
 ```
 
@@ -14,7 +14,7 @@ Submit a script to the server.
 This will copy `script` (modified with the provided slurm options) and
 `files` to [RemoteSlurmJob.remote_directory](RemoteSlurmJob.remote_directory.md) on the remote server and
 submit the script to the slurm scheduler.  To check on its status,
-see [RemoteSlurmJob.status](RemoteSlurmJob.status.md).
+see [RemoteSlurmJob.job_status](RemoteSlurmJob.job_status.md).
 
 Additional slurm customization (not included in the keyword arguments
 listed below) can be included in the beginning of the script.
@@ -45,6 +45,9 @@ Arguments
     by email to `mail_user`.  Prepended to `script` as "#SBATCH --mail_user=mail_user".
 * `mail_user` (string, optional, default=None): email to send notifications.
     Prepended to `script` as "#SBATCH --mail_user=mail_user"
+* `wait_for_job_status` (bool or string or list, optional, default=False):
+    Whether to wait for a specific job_status.  If True, will default to
+    'complete'.  See also [RemoteSlurmJob.wait_for_job_status](RemoteSlurmJob.wait_for_job_status.md).
 * `trial_run` (bool, optional, default=False): if True, the commands
     that would be sent to the server are returned but not executed.
 

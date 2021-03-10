@@ -77,12 +77,9 @@ Calling `j.submit_script` will then submit the job to the remote scheduler and s
 j.submit_script(script, files=[...])
 ```
 
-# Checking Status
-
-To check the status of the job (currently just the output of `squeue`), call [RemoteSlurmJob.status](./api/RemoteSlurmJob.status.md).
-
-
 # Retrieving Results
+
+To check the status of the job, call [RemoteSlurmJob.job_status](./api/RemoteSlurmJob.job_status.md).
 
 To retrieve expected output files from the server via scp, call [RemoteSlurmJob.check_output](./api/RemoteSlurmJob.check_output.md):
 

@@ -87,8 +87,9 @@ j.submit_script(script=['curl -O https://bootstrap.pypa.io/get-pip.py',
 
 **COMING SOON**: If the setup script may take a while, it might make more financial sense to run that in advance from the 1-processor server EC2 instance.  This will not work quite yet as only the local file system is persistent between instances.  In the future, there will hopefully be a cleaner way to create local virtual or conda environments which are also persistent.
 
-
 # Retrieving Results
+
+To check on the status of a submitted job, call [AWSEC2Job.job_status](./api/AWSEC2Job.job_status.md).
 
 To retrieve expected output files from the server via scp, call [AWSEC2Job.check_output](./api/AWSEC2Job.check_output.md):
 

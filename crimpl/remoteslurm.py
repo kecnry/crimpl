@@ -1,5 +1,5 @@
 
-from time import sleep as _sleep
+# from time import sleep as _sleep
 import os as _os
 import subprocess as _subprocess
 
@@ -60,7 +60,7 @@ class RemoteSlurmJob(_common.ServerJob):
                 raise ValueError("job_name={} already exists on {} server".format(job_name, server.server_name))
 
 
-        super().__init__(server, job_name)
+        super().__init__(server, job_name, job_submitted=connect_to_existing)
 
     def __repr__(self):
         return "<RemoteSlurmJob job_name={}>".format(self.job_name)
@@ -97,7 +97,7 @@ class RemoteSlurmJob(_common.ServerJob):
         return _subprocess.check_output(self.server.ssh_cmd+" \"squeue -j {}\"".format(self.slurm_id), shell=True).decode('utf-8').strip()
 
     @property
-    def status(self):
+    def job_status(self):
         """
         Return the status of the job by calling and parsing the output of
         <RemoteSlurmJob.squeue>.
@@ -107,17 +107,71 @@ class RemoteSlurmJob(_common.ServerJob):
 
         Returns
         -----------
-        * (string)
+        * (string): one of not-submitted, pending, running, canceled, failed, complete, unknown
         """
+        if not self._job_submitted:
+            return 'not-submitted'
+
         try:
             out = self.squeue
         except:
-            # then no longer in the queue, so either invalid, complete, or failed
-            return 'complete'
-        # print(out)
+            # then we'll revert to checking the status file below
+            out = ""
 
-        # TODO: parse into something useful
-        return out
+        if len(out.split("\n")) < 2:
+            # then no longer in the queue, so we'll rely on the status file
+
+            try:
+                response = _subprocess.check_output(self.server.ssh_cmd+" \"cat {}\"".format(_os.path.join(self.remote_directory, "crimpl-job.status")), shell=True).decode('utf-8').strip()
+            except _subprocess.CalledProcessError:
+                return 'unknown'
+
+            if response == 'running':
+                # then it started, but is no longer running according to slurm
+                return 'failed'
+
+            return response
+
+        status = out.split("\n")[1].split()[4]
+        # options for status from man squeue
+        # BF  BOOT_FAIL       Job terminated due to launch failure, typically due to a hardware failure (e.g. unable to boot the node or block and the job can not be requeued).
+        # CA  CANCELLED       Job was explicitly cancelled by the user or system administrator.  The job may or may not have been initiated.
+        # CD  COMPLETED       Job has terminated all processes on all nodes with an exit code of zero.
+        # CF  CONFIGURING     Job has been allocated resources, but are waiting for them to become ready for use (e.g. booting).
+        # CG  COMPLETING      Job is in the process of completing. Some processes on some nodes may still be active.
+        # DL  DEADLINE        Job terminated on deadline.
+        # F   FAILED          Job terminated with non-zero exit code or other failure condition.
+        # NF  NODE_FAIL       Job terminated due to failure of one or more allocated nodes.
+        # OOM OUT_OF_MEMORY   Job experienced out of memory error.
+        # PD  PENDING         Job is awaiting resource allocation.
+        # PR  PREEMPTED       Job terminated due to preemption.
+        # R   RUNNING         Job currently has an allocation.
+        # RD  RESV_DEL_HOLD   Job is held.
+        # RF  REQUEUE_FED     Job is being requeued by a federation.
+        # RH  REQUEUE_HOLD    Held job is being requeued.
+        # RQ  REQUEUED        Completing job is being requeued.
+        # RS  RESIZING        Job is about to change size.
+        # RV  REVOKED         Sibling was removed from cluster due to other cluster starting the job.
+        # SI  SIGNALING       Job is being signaled.
+        # SE  SPECIAL_EXIT    The job was requeued in a special state. This state can be set by users, typically in EpilogSlurmctld, if the job has terminated with a particular exit value.
+        # SO  STAGE_OUT       Job is staging out files.
+        # ST  STOPPED         Job has an allocation, but execution has been stopped with SIGSTOP signal.  CPUS have been retained by this job.
+        # S   SUSPENDED       Job has an allocation, but execution has been suspended and CPUs have been released for other jobs.
+        # TO  TIMEOUT         Job terminated upon reaching its time limit.
+
+
+        if status in ['R', 'CG']:
+            return 'running'
+        elif status in ['CD']:
+            return 'complete'
+        elif status in ['CA']:
+            return 'cancelled'
+        elif status in ['F', 'DL', 'NF', 'OOM', 'RF', 'RV', 'SE', 'ST', 'S', 'TO']:
+            return 'failed'
+        elif status in ['PD']:
+            return 'pending'
+
+        return status
 
     def _submit_script_cmds(self, script, files, use_slurm, **slurm_kwargs):
         if isinstance(script, str):
@@ -147,7 +201,7 @@ class RemoteSlurmJob(_common.ServerJob):
                     raise NotImplementedError("slurm command for {} not implemented".format(k))
                 slurm_script += ["#SBATCH {}{}".format(prefix, v)]
 
-            script = slurm_script + ["\n\n"] + script
+            script = slurm_script + ["\n\n"] + ["echo \'running\' > crimpl-job.status"] + script + ["echo \'complete\' > crimpl-job.status"]
 
         # TODO: use tmp file instead
         f = open('crimpl_script.sh', 'w')
@@ -231,6 +285,7 @@ class RemoteSlurmJob(_common.ServerJob):
                       walltime='2-00:00:00',
                       mail_type='END,FAIL',
                       mail_user=None,
+                      wait_for_job_status=False,
                       trial_run=False):
         """
         Submit a script to the server.
@@ -238,7 +293,7 @@ class RemoteSlurmJob(_common.ServerJob):
         This will copy `script` (modified with the provided slurm options) and
         `files` to <RemoteSlurmJob.remote_directory> on the remote server and
         submit the script to the slurm scheduler.  To check on its status,
-        see <RemoteSlurmJob.status>.
+        see <RemoteSlurmJob.job_status>.
 
         Additional slurm customization (not included in the keyword arguments
         listed below) can be included in the beginning of the script.
@@ -269,12 +324,15 @@ class RemoteSlurmJob(_common.ServerJob):
             by email to `mail_user`.  Prepended to `script` as "#SBATCH --mail_user=mail_user".
         * `mail_user` (string, optional, default=None): email to send notifications.
             Prepended to `script` as "#SBATCH --mail_user=mail_user"
+        * `wait_for_job_status` (bool or string or list, optional, default=False):
+            Whether to wait for a specific job_status.  If True, will default to
+            'complete'.  See also <RemoteSlurmJob.wait_for_job_status>.
         * `trial_run` (bool, optional, default=False): if True, the commands
             that would be sent to the server are returned but not executed.
 
         Returns
         ------------
-        * (int): <RemoteSlurmJob.slurm_id>
+        * <RemoteSlurmJob>
 
         Raises
         ------------
@@ -311,7 +369,13 @@ class RemoteSlurmJob(_common.ServerJob):
                 # leave record of slurm id in the remote directory
                 _os.system(self.server.ssh_cmd+" \"echo {} > {}\"".format(self._slurm_id, _os.path.join(self.remote_directory, "crimpl_slurm_id")))
 
-        return self._slurm_id
+
+        self._job_submitted = True
+
+        if wait_for_job_status:
+            self.wait_for_job_status(wait_for_job_status)
+
+        return self
 
     def check_output(self, server_path, local_path="./",
                      wait_for_output=False):

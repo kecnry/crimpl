@@ -14,5 +14,8 @@ nav:
         - RemoteSlurm: RemoteSlurm.md
         - AWSEC2: AWSEC2.md
     - API:
-        - RemoteSlurm: api/RemoteSlurm.md
-        - AWSEC2: api/AWSEC2.md
+        - crimpl (top-level): api/crimpl.md
+        - RemoteSlurmServer: api/RemoteSlurmServer.md
+        - RemoteSlurmJob: api/RemoteSlurmJob.md
+        - AWSEC2Server: api/AWSEC2Server.md
+        - AWSEC2Job: api/AWSEC2Job.md

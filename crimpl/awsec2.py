@@ -3,6 +3,8 @@ from . import common as _common
 
 from time import sleep as _sleep
 import os as _os
+import subprocess as _subprocess
+
 
 try:
     import boto3 as _boto3
@@ -158,17 +160,17 @@ class AWSEC2Job(_common.ServerJob):
         job_matches_running = [d for d in list_awsec2_instances().values() if d['crimpl.level'] == 'job' and d['crimpl.server_name'] == server.server_name and (d['crimpl.job_name'] == job_name or job_name is None)]
 
         if connect_to_existing:
-            if len(job_matches) == 1:
-                instanceId = job_matches[0]['instanceId']
-                job_name = job_matches[0]['crimpl.job_name']
-            elif len(job_matches) > 1:
-                raise ValueError("{} running jobs found on {} server.  Provide job_name or create a new job".format(len(job_matches), server.server_name))
+            if len(job_matches_running) == 1:
+                instanceId = job_matches_running[0]['instanceId']
+                job_name = job_matches_running[0]['crimpl.job_name']
+            elif len(job_matches_running) > 1:
+                raise ValueError("{} running jobs found on {} server.  Provide job_name or create a new job".format(len(job_matches_running), server.server_name))
             else:
                 job_matches_all = [j for j in self.existing_jobs if j==job_name or job_name is None]
-                if len(job_matches) == 1:
+                if len(job_matches_all) == 1:
                     instanceId = None
                 else:
-                    raise ValueError("{} total matching jobs found on {} server.  Please provide job_name or create a new job".format(len(job_matches), server.server_name))
+                    raise ValueError("{} total matching jobs found on {} server.  Please provide job_name or create a new job".format(len(job_matches_all), server.server_name))
         else:
             instanceId = None
             if job_name is None:
@@ -191,7 +193,7 @@ class AWSEC2Job(_common.ServerJob):
                 raise ValueError("cannot provide both nprocs and instanceType")
             InstanceType = _get_ec2_instance_type(nprocs=nprocs)
 
-        super().__init__(server, job_name)
+        super().__init__(server, job_name, job_submitted=connect_to_existing)
 
 
         self._ec2_init_kwargs = {'InstanceType': InstanceType,
@@ -443,6 +445,57 @@ class AWSEC2Job(_common.ServerJob):
             self._instance.wait_until_terminated()
         return self.state
 
+
+    @property
+    def job_status(self):
+        """
+        Return the status of the job.
+
+        If a job has been submitted, but the EC2 instance no longer exists or has
+        been stopped or terminated, then the job is assumed to have completed
+        (although in reality it may have failed or the EC2 instance terminated
+        manually).
+
+        If the EC2 instance is running, then the status file in the job-directory
+        is checked and will return either 'running' or 'complete'.
+
+
+        Returns
+        -----------
+        * (string): one of not-submitted, running, complete, unknown
+        """
+        if not self._job_submitted:
+            return 'not-submitted'
+
+        # first handle the case where we're not connected to an EC2 instance
+        if self._instanceId is None:
+            # then we should have connected if one existed already.  In this case
+            # the instance is already terminated (job_status: complete/failed)
+            # since we know the job has been submitted
+            return 'complete'
+
+        # if we've made it this far, then there is an existing EC2 instance
+        # assigned to this job.  Let's make some assumptions based on its state
+        state = self.state
+        if state in ['terminated', 'stopped', 'stopping', 'shutting-down']:
+            # then since the job has been submitted, we'll assume complete/failed
+            return 'complete'
+        elif state in ['pending']:
+            # then the server is starting back up?  In theory this means it was
+            # already stopped/terminated
+            return 'complete'
+        else:
+            # then we have an instance and we can check its state via ssh
+            try:
+                cmd = self.server.ssh_cmd+" \"cat {}\"".format(_os.path.join(self.remote_directory, "crimpl-job.status"))
+                # print("running: ", cmd)
+                response = _subprocess.check_output(cmd, shell=True).decode('utf-8').strip()
+            except _subprocess.CalledProcessError:
+                return 'unknown'
+
+            return response
+
+
     def _submit_script_cmds(self, script, files, terminate_on_complete, use_screen):
         if isinstance(script, str):
             # TODO: allow for http?
@@ -454,6 +507,11 @@ class AWSEC2Job(_common.ServerJob):
 
         if not isinstance(script, list):
             raise TypeError("script must be of type string (path) or list (list of commands)")
+
+        if "#!" in script[0]:
+            script = [script[0]] + ["echo \'running\' > crimpl-job.status"] + script[1:] + ["echo \'complete\' > crimpl-job.status"]
+        else:
+            script = ["echo \'running\' > crimpl-job.status"] + script + ["echo \'complete\' > crimpl-job.status"]
 
         # TODO: use tmp file instead
         f = open('crimpl_script.sh', 'w')
@@ -529,7 +587,9 @@ class AWSEC2Job(_common.ServerJob):
 
         return
 
-    def submit_script(self, script, files=[], terminate_on_complete=True, trial_run=False):
+    def submit_script(self, script, files=[], terminate_on_complete=True,
+                      wait_for_job_status=False,
+                      trial_run=False):
         """
         Submit a script to the server.
 
@@ -559,6 +619,9 @@ class AWSEC2Job(_common.ServerJob):
             to minimize costs.  In this case, the <AWSEC2Job.server> EC2 instance
             will be restarted when calling <AWSEC2Job.check_output> with access
             to the same storage volume.
+        * `wait_for_job_status` (bool or string or list, optional, default=False):
+            Whether to wait for a specific job_status.  If True, will default to
+            'complete'.  See also <AWSEC2Job.wait_for_job_status>.
         * `trial_run` (bool, optional, default=False): if True, the commands
             that would be sent to the server are returned but not executed
             (and the server is not started automatically - so these may include
@@ -567,7 +630,7 @@ class AWSEC2Job(_common.ServerJob):
 
         Returns
         ------------
-        * None
+        * <AWSEC2Job>
 
         Raises
         ------------
@@ -588,7 +651,12 @@ class AWSEC2Job(_common.ServerJob):
             # expecting and answering yes, or by looking into subnet options)
             _os.system(cmd)
 
-        return
+        self._job_submitted = True
+
+        if wait_for_job_status:
+            self.wait_for_job_status(wait_for_job_status)
+
+        return self
 
     def check_output(self, server_path, local_path="./",
                      wait_for_output=False,
@@ -919,23 +987,26 @@ class AWSEC2Server(_common.Server):
                               start=start)#, connect_to_existing=False)
 
 
-    def wait_for_state(self, state, sleeptime=0.5):
+    def wait_for_state(self, state='running', sleeptime=0.5):
         """
         Wait for the **server** EC2 instance to reach a specified state.
 
         Arguments
         ----------
-        * `state` (string): the desired state.
-        * `sleeptime` (float, optional, default): seconds to wait between
-            successive state checks.
+        * `state` (string or list, optional, default='running'): state or states
+            to exit the wait loop.
+        * `sleeptime` (float, optional, default=5): number of seconds to wait
+            between successive EC2 state checks.
 
         Returns
         ----------
         * (string) <AWSEC2Server.state>
         """
-        while self.state != state:
+        if isinstance(state, str):
+            state = [state]
+        while self.state not in state:
             _sleep(sleeptime)
-        return self.state
+        return state
 
     def start(self):
         """
