@@ -74,6 +74,9 @@ class ServerJob(object):
         # allow for caching remote_directory
         self._remote_directory = None
 
+        # allow caching for input files
+        self._input_files = None
+
     def __str__(self):
         return self.__repr__()
 
@@ -105,19 +108,93 @@ class ServerJob(object):
         * (string)
         """
         if self._remote_directory is None:
-            if self.__class__.__name__ == 'AWSEC2Job':
-                if self._instanceId is not None:
-                    ssh_cmd = self.ssh_cmd
-                else:
-                    ssh_cmd = self.server.ssh_cmd
-            else:
-                ssh_cmd = self.server.ssh_cmd
-            home_dir = _subprocess.check_output(ssh_cmd+" \"pwd\"", shell=True).decode('utf-8').strip()
+            # NOTE: for AWSEC2 self.server.ssh_cmd may point to the job EC2 instance if the server is not running
+            home_dir = _subprocess.check_output(self.server.ssh_cmd+" \"pwd\"", shell=True).decode('utf-8').strip()
             if "~" in self.server.directory:
                 self._remote_directory = _os.path.join(self.server.directory.replace("~", home_dir), "crimpl-job-{}".format(self.job_name))
             else:
                 self._remote_directory = _os.path.join(home_dir, self.server.directory, "crimpl-job-{}".format(self.job_name))
         return self._remote_directory
+
+    @property
+    def ls(self):
+        """
+        List all files in the **job** subdirectory on the remote server.
+
+        See also:
+
+        * <<class>.job_files>
+        * <<class>.input_files>
+        * <<class>.output_files>
+
+        Returns
+        ----------
+        * (list)
+        """
+        response = _subprocess.check_output(self.server.ssh_cmd+" \"ls {}/*\"".format(self.remote_directory), shell=True).decode('utf-8').strip()
+        return [_os.path.basename(f) for f in response.split()]
+
+    @property
+    def job_files(self):
+        """
+        List the files in the **job** subdirectory on the remote server, including
+        files sent to the server and output files, but excluding files created
+        and managed by **crimpl**.
+
+        See also:
+
+        * <<class>.ls>
+        * <<class>.input_files>
+        * <<class>.output_files>
+
+        Returns
+        -------------
+        * (list)
+        """
+        return [f for f in self.ls if f[:6]!='crimpl']
+
+    @property
+    def input_files(self):
+        """
+        List the **input** files in the **job** subdirectory on the remote server.
+
+        These were files sent via <<class>.submit_job>.
+
+        See also:
+
+        * <<class>.ls>
+        * <<class>.job_files>
+        * <<class>.output_files>
+
+        Returns
+        -----------
+        * (list)
+        """
+        if self._input_files is None:
+
+            response = _subprocess.check_output(self.server.ssh_cmd+" \"cat {}\"".format(_os.path.join(self.remote_directory, "crimpl-input-files.list")), shell=True).decode('utf-8').strip()
+            self._input_files = response.split()
+
+        return self._input_files
+
+    @property
+    def output_files(self):
+        """
+        List the **output** files in the **job** subdirectory on the remote server.
+
+        These are all <<class>.job_files> that are not included in <<class>.input_files>.
+
+        See also:
+
+        * <<class>.ls>
+        * <<class>.job_files>
+        * <<class>.input_files>
+
+        Returns
+        ----------
+        * (list)
+        """
+        return [f for f in self.job_files if f not in self.input_files]
 
     def wait_for_job_status(self, status='complete',
                             error_if=['failed', 'canceled'],
@@ -156,3 +233,40 @@ class ServerJob(object):
             _sleep(sleeptime)
 
         return status
+
+    def check_output(self, server_path=None, local_path="./",
+                     wait_for_output=False):
+        """
+        Attempt to copy a file(s) back from the remote server.
+
+        Arguments
+        -----------
+        * `server_path` (string or list or None, optional, default=None): path(s)
+            (relative to `directory`) on the server of the file(s) to retrieve.
+            If not provided or None, will default to <<class>.output_files>.
+            See also: <<class>.ls> or <<class>.job_files> for a full list of
+            available files on the remote server.
+        * `local_path` (string, optional, default="./"): local path to copy
+            the retrieved file.
+        * `wait_for_output` (bool, optional, default=False): NOT IMPLEMENTED
+
+
+        Returns
+        ----------
+        * None
+        """
+        if wait_for_output:
+            raise NotImplementedError("wait_for_output not yet implemented")
+
+        if server_path is None:
+            server_path = self.output_files
+
+        if isinstance(server_path, str):
+            server_path_str = _os.path.join(self.remote_directory, server_path)
+        else:
+            server_path_str = "%s/{%s}" %  (self.remote_directory, ",".join(server_path))
+
+        scp_cmd = self.server.scp_cmd_from.format(server_path=server_path_str, local_path=local_path)
+        # TODO: execute cmd, handle wait_for_output and also handle errors if stopped/terminated before getting results
+        print("running: {}".format(scp_cmd))
+        _os.system(scp_cmd)

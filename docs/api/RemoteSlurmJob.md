@@ -2,9 +2,13 @@
 
 * [__init__](RemoteSlurmJob.__init__.md)
 * [check_output](RemoteSlurmJob.check_output.md)
+* [input_files](RemoteSlurmJob.input_files.md)
+* [job_files](RemoteSlurmJob.job_files.md)
 * [job_name](RemoteSlurmJob.job_name.md)
 * [job_status](RemoteSlurmJob.job_status.md)
+* [ls](RemoteSlurmJob.ls.md)
 * [nprocs](RemoteSlurmJob.nprocs.md)
+* [output_files](RemoteSlurmJob.output_files.md)
 * [remote_directory](RemoteSlurmJob.remote_directory.md)
 * [run_script](RemoteSlurmJob.run_script.md)
 * [server](RemoteSlurmJob.server.md)

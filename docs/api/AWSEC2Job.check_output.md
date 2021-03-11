@@ -9,12 +9,13 @@ def check_output(self, server_path, local_path='./', wait_for_output=False, term
 
 
 
-Attempt to copy a file back from the server.
+Attempt to copy a file(s) back from the remote server.
 
 Arguments
 -----------
 * `server_path` (string or list): path(s) (relative to `directory`) on the server
-    of the file(s) to retrieve.
+    of the file(s) to retrieve.  See &lt;AWSEC2Job.job_files&gt; for a list
+    of available files on ther remote server.
 * `local_path` (string, optional, default="./"): local path to copy
     the retrieved file.
 * `wait_for_output` (bool, optional, default=False): NOT IMPLEMENTED

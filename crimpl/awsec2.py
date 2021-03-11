@@ -687,6 +687,7 @@ class AWSEC2Job(_common.ServerJob):
             _os.system(cmd)
 
         self._job_submitted = True
+        self._input_files = None
 
         if wait_for_job_status:
             self.wait_for_job_status(wait_for_job_status)
@@ -697,12 +698,13 @@ class AWSEC2Job(_common.ServerJob):
                      wait_for_output=False,
                      terminate_if_server_started=False):
         """
-        Attempt to copy a file back from the server.
+        Attempt to copy a file(s) back from the remote server.
 
         Arguments
         -----------
         * `server_path` (string or list): path(s) (relative to `directory`) on the server
-            of the file(s) to retrieve.
+            of the file(s) to retrieve.  See <AWSEC2Job.job_files> for a list
+            of available files on ther remote server.
         * `local_path` (string, optional, default="./"): local path to copy
             the retrieved file.
         * `wait_for_output` (bool, optional, default=False): NOT IMPLEMENTED
@@ -733,16 +735,7 @@ class AWSEC2Job(_common.ServerJob):
             scp_cmd_from = self.server.scp_cmd_from
             did_restart = True
 
-        if isinstance(server_path, str):
-            server_path_str = _os.path.join(self.remote_directory, server_path)
-        else:
-            server_path = [_os.path.join(self.remote_directory, path) for path in server_path]
-            server_path_str = "\"{}\"".format(" ".join(server_path))
-
-        scp_cmd = scp_cmd_from.format(server_path=server_path_str, local_path=local_path)
-        # TODO: execute cmd, handle wait_for_output and also handle errors if stopped/terminated before getting results
-        print("running: {}".format(scp_cmd))
-        _os.system(scp_cmd)
+        super().check_output(server_path, local_path, wait_for_output)
 
         if did_restart and terminate_if_server_started:
             self.server.terminate()

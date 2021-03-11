@@ -230,6 +230,7 @@ class RemoteSlurmJob(_common.ServerJob):
                 raise ValueError("cannot find file at {}".format(f))
 
         mkdir_cmd = self.server.ssh_cmd+" \"mkdir -p {}\"".format(self.remote_directory)
+        logfiles_cmd = self.server.ssh_cmd+" \"echo \'{}\' >> {}\"".format(" ".join([_os.path.basename(f) for f in files]), _os.path.join(self.remote_directory, "crimpl-input-files.list"))
 
         # TODO: use job subdirectory for server_path
         scp_cmd = self.server.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.remote_directory+"/")
@@ -242,7 +243,7 @@ class RemoteSlurmJob(_common.ServerJob):
         else:
             cmd += " \"chmod +x {remote_script}; sh {remote_script}\"".format(remote_script=remote_script)
 
-        return [mkdir_cmd, scp_cmd, cmd]
+        return [mkdir_cmd, scp_cmd, logfiles_cmd, cmd]
 
     def run_script(self, script, files=[], trial_run=False):
         """
@@ -391,43 +392,12 @@ class RemoteSlurmJob(_common.ServerJob):
 
 
         self._job_submitted = True
+        self._input_files = None
 
         if wait_for_job_status:
             self.wait_for_job_status(wait_for_job_status)
 
         return self
-
-    def check_output(self, server_path, local_path="./",
-                     wait_for_output=False):
-        """
-        Attempt to copy a file back from the server.
-
-        Arguments
-        -----------
-        * `server_path` (string or list): path(s) (relative to `directory`) on the server
-            of the file(s) to retrieve.
-        * `local_path` (string, optional, default="./"): local path to copy
-            the retrieved file.
-        * `wait_for_output` (bool, optional, default=False): NOT IMPLEMENTED
-
-
-        Returns
-        ----------
-        * None
-        """
-        if wait_for_output:
-            raise NotImplementedError("wait_for_output not yet implemented")
-
-        if isinstance(server_path, str):
-            server_path_str = _os.path.join(self.remote_directory, server_path)
-        else:
-            server_path = [_os.path.join(self.remote_directory, path) for path in server_path]
-            server_path_str = "\"{}\"".format(" ".join(server_path))
-
-        scp_cmd = self.server.scp_cmd_from.format(server_path=server_path_str, local_path=local_path)
-        # TODO: execute cmd, handle wait_for_output and also handle errors if stopped/terminated before getting results
-        print("running: {}".format(scp_cmd))
-        _os.system(scp_cmd)
 
 
 
