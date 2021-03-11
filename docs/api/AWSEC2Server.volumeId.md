@@ -2,3 +2,10 @@
 
 
 
+
+AWS internal volumeId for the **server** volume
+
+Returns
+---------
+* (string)
+

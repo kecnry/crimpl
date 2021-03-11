@@ -12,5 +12,24 @@ def __init__(self, server_name=None, volumeId=None, instanceId=None, KeyFile=Non
 Connect to an existing &lt;AWSEC2Server&gt; by `volumeId`.
 
 To create a new server, use &lt;AWSEC2Server.new&gt; instead.
-To load a server by name, use &lt;AWSEC2Server.load&gt; instead.
+
+* `server_name` (string, optional, default=None): internal name of the
+    **existing** server to retrieve.  To create a new server, call
+    &lt;AWSEC2Server.new&gt; instead.  Either `server_name` or `volumeId` must
+    be provided.
+* `volumeId` (string, optional, default=None): AWS internal `volumeId`
+    of the shared AWS EC2 volume instance.  Either `server_name` or
+    `volumeId` must be provided.
+* `instanceId` (string, optional, default=None): AWS internal `instanceId`
+    of the **server** EC2 instance.  If not provided, will be determined
+    from `server_name` and/or `volumeId`.
+* `KeyFile` (string, required, default=None): path to the KeyFile
+* `KeyName` (string, optional, default=None): AWS internal name corresponding
+    to `KeyFile`.  If not provided, will be assumed to be `basename(KeyFile).split(.)[0]`.
+* `SubnetId` (string, required, default=None):
+* `SecurityGroupId` (string, required, default=None):
+
+Returns
+------------
+* &lt;AWSEC2Server&gt;
 

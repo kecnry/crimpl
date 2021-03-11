@@ -363,7 +363,7 @@ class AWSEC2Job(_common.ServerJob):
             _sleep(sleeptime)
         return self.state
 
-    def start(self):
+    def start(self, wait=True):
         """
         Start the **job** EC2 instance.
 
@@ -373,7 +373,10 @@ class AWSEC2Job(_common.ServerJob):
         if not already manually started.
 
         Arguments
-        -------------
+        ------------
+        * `wait` (bool, optional, default=True): `wait` is required to be True
+            in order to attach the **server** volume and is only exposed as a
+            kwarg for consistent calling signature (the passed value will be ignored)
 
         Return
         --------
@@ -686,7 +689,8 @@ class AWSEC2Job(_common.ServerJob):
 
         Arguments
         -----------
-        * `server_path` (string): path on the server of the file to retrieve.
+        * `server_path` (string or list): path(s) (relative to `directory`) on the server
+            of the file(s) to retrieve.
         * `local_path` (string, optional, default="./"): local path to copy
             the retrieved file.
         * `wait_for_output` (bool, optional, default=False): NOT IMPLEMENTED
@@ -717,7 +721,13 @@ class AWSEC2Job(_common.ServerJob):
             scp_cmd_from = self.server.scp_cmd_from
             did_restart = True
 
-        scp_cmd = scp_cmd_from.format(server_path=_os.path.join(self.remote_directory, server_path), local_path=local_path)
+        if isinstance(server_path, str):
+            server_path_str = _os.path.join(self.remote_directory, server_path)
+        else:
+            server_path = [_os.path.join(self.remote_directory, path) for path in server_path]
+            server_path_str = "\"{}\"".format(" ".join(server_path))
+
+        scp_cmd = scp_cmd_from.format(server_path=server_path_str, local_path=local_path)
         # TODO: execute cmd, handle wait_for_output and also handle errors if stopped/terminated before getting results
         print("running: {}".format(scp_cmd))
         _os.system(scp_cmd)
@@ -735,9 +745,26 @@ class AWSEC2Server(_common.Server):
         Connect to an existing <AWSEC2Server> by `volumeId`.
 
         To create a new server, use <AWSEC2Server.new> instead.
-        To load a server by name, use <AWSEC2Server.load> instead.
 
+        * `server_name` (string, optional, default=None): internal name of the
+            **existing** server to retrieve.  To create a new server, call
+            <AWSEC2Server.new> instead.  Either `server_name` or `volumeId` must
+            be provided.
+        * `volumeId` (string, optional, default=None): AWS internal `volumeId`
+            of the shared AWS EC2 volume instance.  Either `server_name` or
+            `volumeId` must be provided.
+        * `instanceId` (string, optional, default=None): AWS internal `instanceId`
+            of the **server** EC2 instance.  If not provided, will be determined
+            from `server_name` and/or `volumeId`.
+        * `KeyFile` (string, required, default=None): path to the KeyFile
+        * `KeyName` (string, optional, default=None): AWS internal name corresponding
+            to `KeyFile`.  If not provided, will be assumed to be `basename(KeyFile).split(.)[0]`.
+        * `SubnetId` (string, required, default=None):
+        * `SecurityGroupId` (string, required, default=None):
 
+        Returns
+        ------------
+        * <AWSEC2Server>
         """
         if not _boto3_installed:
             raise ImportError("boto3 and \"aws config\" required for {}".format(self.__class__.__name__))
@@ -801,6 +828,31 @@ class AWSEC2Server(_common.Server):
     def new(cls, server_name=None, volumeSize=4,
             KeyFile=None, KeyName=None,
             SubnetId=None, SecurityGroupId=None):
+        """
+        Create a new <AWSEC2Server> instance.
+
+        This creates a blank AWS EC2 volume to be shared among both **server**
+        and **job** AWS EC2 instances with `volumeSize` storage.
+
+        Arguments
+        -----------
+        * `server_name` (string, optional, default=None): internal name to assign
+            to the server.  If not provided, will be assigned automatically and
+            available from <AWSEC2Server.server_name>.  Once created, the <AWSEC2Server>
+            object can then be retrieved by name via <AWSEC2Server.__init__>.
+        * `volumeSize` (int, optional, default=4): size, in GiB of the shared
+            volume to create.  Once created, the volume begins accruing charges.
+            See AWS documentation for pricing details.
+        * `KeyFile` (string, required, default=None): path to the KeyFile
+        * `KeyName` (string, optional, default=None): AWS internal name corresponding
+            to `KeyFile`.  If not provided, will be assumed to be `basename(KeyFile).split(.)[0]`.
+        * `SubnetId` (string, required, default=None):
+        * `SecurityGroupId` (string, required, default=None):
+
+        Returns
+        ----------
+        * <AWSEC2Server>
+        """
 
 
         # Multi-Attach is available in the following Regions only:
@@ -846,10 +898,24 @@ class AWSEC2Server(_common.Server):
 
     @property
     def server_name(self):
+        """
+        internal name of the server.
+
+        Returns
+        ----------
+        * (string)
+        """
         return self._server_name
 
     @property
     def volumeId(self):
+        """
+        AWS internal volumeId for the **server** volume
+
+        Returns
+        ---------
+        * (string)
+        """
         return self._volumeId
 
     @property
@@ -858,7 +924,13 @@ class AWSEC2Server(_common.Server):
 
     def delete_volume(self):
         """
+        Delete the AWS EC2 **server** volume.  Once deleted, servers and jobs
+        will no longer be accessible and a new <AWSEC2Server> instance must be created
+        for additional submissions.
 
+        Returns
+        -----------
+        * None
         """
         # TODO: check status of server, MUST be terminated
         if self._instanceId is not None and self.state != 'terminated':
@@ -872,7 +944,7 @@ class AWSEC2Server(_common.Server):
     @property
     def instanceId(self):
         """
-        instanceId of the **server** EC2 instance.
+        AWS internal instanceId of the **server** EC2 instance.
 
         Returns
         -----------
@@ -1050,16 +1122,17 @@ class AWSEC2Server(_common.Server):
             _sleep(sleeptime)
         return self.state
 
-    def start(self):
+    def start(self, wait=True):
         """
         Start the **server** EC2 instance.
 
         A running EC2 instance charges per CPU-second.  See AWS pricing for more details.
 
-
         Arguments
-        -------------
-
+        ------------
+        * `wait` (bool, optional, default=True): `wait` is required to be True
+            in order to attach the **server** volume and is only exposed as a
+            kwarg for consistent calling signature (the passed value will be ignored)
 
         Return
         --------

@@ -13,7 +13,8 @@ Attempt to copy a file back from the server.
 
 Arguments
 -----------
-* `server_path` (string): path on the server of the file to retrieve.
+* `server_path` (string or list): path(s) (relative to `directory`) on the server
+    of the file(s) to retrieve.
 * `local_path` (string, optional, default="./"): local path to copy
     the retrieved file.
 * `wait_for_output` (bool, optional, default=False): NOT IMPLEMENTED

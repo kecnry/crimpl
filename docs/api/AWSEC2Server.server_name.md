@@ -2,3 +2,10 @@
 
 
 
+
+internal name of the server.
+
+Returns
+----------
+* (string)
+

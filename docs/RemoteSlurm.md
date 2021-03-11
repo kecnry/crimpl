@@ -77,9 +77,30 @@ Calling `j.submit_script` will then submit the job to the remote scheduler and s
 j.submit_script(script, files=[...])
 ```
 
+# Retrieving an Existing Job
+
+To retrieve the [RemoteSlurmJob](./api/RemoteSlurmJob.md) instance for an existing job on a server, call [RemoteSlurmServer.get_job](./api/RemoteSlurmServer.get_job.md):
+
+```
+j = crimpl.RemoteSlurmServer(...).get_job(job_name='my-unique-jobname')
+```
+
+If `job_name` was not provided while creating the job, it could be accessed via [RemoteSlurmJob.job_name](./api/RemoteSlurmJob.job_name.md) or [RemoteSlurmServer.existing_jobs](./api/RemoteSlurmServer.existing_jobs.md).
+
+
 # Retrieving Results
 
-To check the status of the job, call [RemoteSlurmJob.job_status](./api/RemoteSlurmJob.job_status.md).
+To check the status of the job, call [RemoteSlurmJob.job_status](./api/RemoteSlurmJob.job_status.md):
+
+```
+print(j.job_status)
+```
+
+To wait in a loop until the job reaches a desired status, call [RemoteSlurmJob.wait_for_job_status](./api/RemoteSlurmJob.wait_for_job_status.md):
+
+```
+j.wait_for_job_status('complete')
+```
 
 To retrieve expected output files from the server via scp, call [RemoteSlurmJob.check_output](./api/RemoteSlurmJob.check_output.md):
 
@@ -87,4 +108,4 @@ To retrieve expected output files from the server via scp, call [RemoteSlurmJob.
 j.check_output(filename_on_server, local_filename)
 ```
 
-where `filename_on_server` is the expected path relative to the remote working directory.
+where `filename_on_server` is the expected path(s) relative to the remote working directory.

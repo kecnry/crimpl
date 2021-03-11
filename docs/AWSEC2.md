@@ -23,7 +23,8 @@ With this information, you can now initialize a new [AWSEC2Server](./api/AWSEC2S
 ```
 import crimpl
 
-s = crimpl.AWSEC2Server.new(volumeSize=8,
+s = crimpl.AWSEC2Server.new(server_name='my-aws-server'
+                            volumeSize=8,
                             KeyFile="...",
                             KeyName="...",
                             SubnetId="...",
@@ -39,6 +40,20 @@ This creates an AWS EBS volume in your account at the specified size.  This volu
 * [AWSEC2Server.state](./api/AWSEC2Server.state.md)
 * [AWSEC2Server.delete_volume](./api/AWSEC2Server.delete_volume.md)
 * [AWSEC2Server.run_script](./api/AWSEC2Server.run_script.md)
+
+# Retrieving an Existing Server Instance
+
+An existing [AWSEC2Server](./api/AWSEC2Server.md) instance can be retrieved (so long as the volume hasn't been manually deleted), by passing the provided `server_name` to [AWSEC2Server.\_\_init\_\_](./api/AWSEC2Server.__init__.md):
+
+```
+s = crimpl.AWSEC2Server(server_name='my-aws-server',
+                        KeyFile="...",
+                        KeyName="...",
+                        SubnetId="...",
+                        SecurityGroupId="...")
+```
+
+If `server_name` was not provided when creating the original instance, the generated name could be accessed with [AWSEC2Server.server_name](./api/AWSEC2Server.server_name.md).  If unknown, all existing volumes managed by **crimpl** can be listed with [crimpl.list_awsec2_volumes](./api/crimpl.list_awsec2_volumes.md) (where the `server_name` will show in the returned dictionary).
 
 # The AWS EC2 Job Instance
 
@@ -87,6 +102,16 @@ j.submit_script(script=['curl -O https://bootstrap.pypa.io/get-pip.py',
 
 **COMING SOON**: If the setup script may take a while, it might make more financial sense to run that in advance from the 1-processor server EC2 instance.  This will not work quite yet as only the local file system is persistent between instances.  In the future, there will hopefully be a cleaner way to create local virtual or conda environments which are also persistent.
 
+# Retrieving an Existing Job
+
+To retrieve the [AWSEC2Job](./api/AWSEC2Job.md) instance for an existing job on an active server, call [AWSEC2Server.get_job](./api/AWSEC2Server.get_job.md):
+
+```
+j = crimpl.AWSEC2Server(...).get_job(job_name='my-unique-jobname')
+```
+
+If `job_name` was not provided while creating the job, it could be accessed via [AWSEC2Job.job_name](./api/AWSEC2Job.job_name.md) or [AWSEC2Server.existing_jobs](./api/AWSEC2Server.existing_jobs.md).
+
 # Retrieving Results
 
 To check on the status of a submitted job, call [AWSEC2Job.job_status](./api/AWSEC2Job.job_status.md).
@@ -96,6 +121,8 @@ To retrieve expected output files from the server via scp, call [AWSEC2Job.check
 ```
 j.check_output(filename_on_server, local_filename)
 ```
+where `filename_on_server` is the expected path(s) relative to the remote working directory.
+
 
 # Checking and Managing AWS Resources
 

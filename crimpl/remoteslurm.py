@@ -404,8 +404,8 @@ class RemoteSlurmJob(_common.ServerJob):
 
         Arguments
         -----------
-        * `server_path` (string): path (relative to `directory`) on the server
-            of the file to retrieve.
+        * `server_path` (string or list): path(s) (relative to `directory`) on the server
+            of the file(s) to retrieve.
         * `local_path` (string, optional, default="./"): local path to copy
             the retrieved file.
         * `wait_for_output` (bool, optional, default=False): NOT IMPLEMENTED
@@ -418,7 +418,13 @@ class RemoteSlurmJob(_common.ServerJob):
         if wait_for_output:
             raise NotImplementedError("wait_for_output not yet implemented")
 
-        scp_cmd = self.server.scp_cmd_from.format(server_path=_os.path.join(self.remote_directory, server_path), local_path=local_path)
+        if isinstance(server_path, str):
+            server_path_str = _os.path.join(self.remote_directory, server_path)
+        else:
+            server_path = [_os.path.join(self.remote_directory, path) for path in server_path]
+            server_path_str = "\"{}\"".format(" ".join(server_path))
+
+        scp_cmd = self.server.scp_cmd_from.format(server_path=server_path_str, local_path=local_path)
         # TODO: execute cmd, handle wait_for_output and also handle errors if stopped/terminated before getting results
         print("running: {}".format(scp_cmd))
         _os.system(scp_cmd)
@@ -427,22 +433,30 @@ class RemoteSlurmJob(_common.ServerJob):
 
 class RemoteSlurmServer(_common.Server):
     _JobClass = RemoteSlurmJob
-    def __init__(self, host, directory=None):
+    def __init__(self, host, directory=None, server_name=None):
         """
         Connect to a remote server running a Slurm scheduler.
 
-        To create a new job, use <RemoteSlurmScheduler.create_job> or to connect
-        to a previously created job, use <RemoteSlurmScheduler.get_job>.
+        To create a new job, use <RemoteSlurmServer.create_job> or to connect
+        to a previously created job, use <RemoteSlurmServer.get_job>.
 
         Arguments
         -----------
-        * `host` (string): override host of the remote server.  Must be
-            passwordless ssh-able.
+        * `host` (string): host of the remote server.  Must be passwordless ssh-able.
+            See <RemoteSlurmServer.host>
         * `directory` (string, optional, default=None): root directory of all
             jobs to run on the remote server.  The directory will be created
             if it does not already exist.
+        * `server_name` (string): name to assign to the server.  If not provided,
+            will be adopted automatically from `host` and available from
+            <RemoteSlurmServer.server_name>.
         """
         self._host = host
+
+        if server_name is None:
+            server_name = host.split("@")[-1]
+
+        self._server_name = server_name
 
         super().__init__(directory)
 
@@ -452,6 +466,17 @@ class RemoteSlurmServer(_common.Server):
 
     def __repr__(self):
         return "<RemoteSlurmServer host={} directory={}>".format(self.config.host, self.config.directory)
+
+    @property
+    def server_name(self):
+        """
+        internal name of the server.
+
+        Returns
+        ----------
+        * (string)
+        """
+        return self._server_name
 
     @property
     def host(self):

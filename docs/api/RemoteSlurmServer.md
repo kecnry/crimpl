@@ -12,6 +12,7 @@
 * [run_script](RemoteSlurmServer.run_script.md)
 * [scp_cmd_from](RemoteSlurmServer.scp_cmd_from.md)
 * [scp_cmd_to](RemoteSlurmServer.scp_cmd_to.md)
+* [server_name](RemoteSlurmServer.server_name.md)
 * [sinfo](RemoteSlurmServer.sinfo.md)
 * [squeue](RemoteSlurmServer.squeue.md)
 * [ssh_cmd](RemoteSlurmServer.ssh_cmd.md)

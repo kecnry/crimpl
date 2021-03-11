@@ -3,7 +3,7 @@
 
 
 
-instanceId of the **server** EC2 instance.
+AWS internal instanceId of the **server** EC2 instance.
 
 Returns
 -----------

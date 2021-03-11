@@ -32,8 +32,16 @@ The configuration, options, and capabilities of each type of server are explored
 
 ## API Documentation
 
-* [RemoteSlurm](./api/RemoteSlurm.md)
-* [AWSEC2](./api/AWSEC2.md)
+Remote Slurm:
+
+* [RemoteSlurmServer](./api/RemoteSlurmServer.md)
+* [RemoteSlurmJob](./api/RemoteSlurmJob.md)
+
+
+AWS EC2:
+
+* [AWSEC2Server](./api/AWSEC2Server.md)
+* [AWSEC2Job](./api/AWSEC2Job.md)
 
 ## Contributors
 
