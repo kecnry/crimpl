@@ -180,7 +180,7 @@ class RemoteSlurmJob(_common.ServerJob):
         elif status in ['CD']:
             return 'complete'
         elif status in ['CA']:
-            return 'cancelled'
+            return 'canceled'
         elif status in ['F', 'DL', 'NF', 'OOM', 'RF', 'RV', 'SE', 'ST', 'S', 'TO']:
             return 'failed'
         elif status in ['PD']:

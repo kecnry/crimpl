@@ -119,14 +119,18 @@ class ServerJob(object):
                 self._remote_directory = _os.path.join(home_dir, self.server.directory, "crimpl-job-{}".format(self.job_name))
         return self._remote_directory
 
-    def wait_for_job_status(self, status='complete', sleeptime=5):
+    def wait_for_job_status(self, status='complete',
+                            error_if=['failed', 'canceled'],
+                            sleeptime=5):
         """
         Wait for the job to reach a desired job_status.
 
         Arguments
         -----------
         * `status` (string or list, optional, default='complete'): status
-            or statuses to exit the wait loop.
+            or statuses to exit the wait loop successfully.
+        * `error_if` (string or list, optional, default=['failed', 'canceled']): status or
+            statuses to exit the wait loop and raise an error.
         * `sleeptime` (int, optional, default=5): number of seconds to wait
             between successive job status checks.
 
@@ -140,6 +144,15 @@ class ServerJob(object):
         if isinstance(status, str):
             status = [status]
 
-        while self.job_status not in status:
+        if isinstance(error_if, str):
+            error_if = [error_if]
+
+        while True:
+            job_status = self.job_status
+            if job_status in status:
+                break
+            if job_status in error_if:
+                raise ValueError("job_status={}".format(job_status))
             _sleep(sleeptime)
-        return self.job_status
+
+        return status

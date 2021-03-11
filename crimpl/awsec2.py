@@ -341,14 +341,16 @@ class AWSEC2Job(_common.ServerJob):
 
         return "scp -i %s %s@%s:{server_path} {local_path}" % (self.server._KeyFile, self.username, ip)
 
-    def wait_for_state(self, state='running', sleeptime=0.5):
+    def wait_for_state(self, state='running', error_if=[], sleeptime=0.5):
         """
         Wait for the **job** EC2 instance to reach a specified state.
 
         Arguments
         ----------
         * `state` (string or list, optional, default='running'): state or states
-            to exit the wait loop.
+            to exit the wait loop successfully.
+        * `error_if` (string or list, optional, default=[]): state or states
+            to exit the wait loop and raise an error.
         * `sleeptime` (float, optional, default): seconds to wait between
             successive state checks.
 
@@ -359,9 +361,19 @@ class AWSEC2Job(_common.ServerJob):
         if isinstance(state, string):
             state = [state]
 
-        while self.state not in state:
+        if isinstance(error_if, string):
+            error_if = [error_if]
+
+        while True:
+            curr_state = self.state
+            if curr_state in state:
+                break
+            if curr_state in error_if:
+                raise ValueError("state={}".format(curr_state))
+
             _sleep(sleeptime)
-        return self.state
+
+        return state
 
     def start(self, wait=True):
         """
@@ -1108,7 +1120,9 @@ class AWSEC2Server(_common.Server):
         Arguments
         ----------
         * `state` (string or list, optional, default='running'): state or states
-            to exit the wait loop.
+            to exit the wait loop successfully.
+        * `error_if` (string or list, optional, default=[]): state or states
+            to exit the wait loop and raise an error.
         * `sleeptime` (float, optional, default=5): number of seconds to wait
             between successive EC2 state checks.
 
@@ -1118,9 +1132,20 @@ class AWSEC2Server(_common.Server):
         """
         if isinstance(state, str):
             state = [state]
-        while self.state not in state:
+
+        if isinstance(error_if, string):
+            error_if = [error_if]
+
+        while True:
+            curr_state = self.state
+            if curr_state in state:
+                break
+            if curr_state in error_if:
+                raise ValueError("state={}".format(curr_state))
+
             _sleep(sleeptime)
-        return self.state
+
+        return state
 
     def start(self, wait=True):
         """
