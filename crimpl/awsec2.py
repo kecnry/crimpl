@@ -239,6 +239,7 @@ class AWSEC2Job(_common.ServerJob):
         * stopped
 
         See also:
+
         * <AWSEC2Server.state>
 
         Returns
@@ -287,59 +288,6 @@ class AWSEC2Job(_common.ServerJob):
         * (string)
         """
         return self._instance.public_ip_address
-
-    @property
-    def ssh_cmd(self):
-        """
-        ssh command to the **job** EC2 instance.
-
-        Returns
-        ----------
-        * (string): If the server is not yet started and <AWSEC2Job.ip> is not available,
-            the ip will be replaced with {ip}
-        """
-        try:
-            ip = self.ip
-        except:
-            ip = "{ip}"
-
-        return "ssh -i {} {}@{}".format(self.server._KeyFile, self.username, ip)
-
-    @property
-    def scp_cmd_to(self):
-        """
-        scp command to copy files to the server via the **job** EC2 instance.
-
-        Returns
-        ----------
-        * (string): command with "{}" placeholders for `local_path` and `server_path`.
-            If the server is not yet started and <AWSEC2Job.ip> is not available,
-            the ip will be replaced with {ip}
-        """
-        try:
-            ip = self.ip
-        except:
-            ip = "{ip}"
-
-        return "scp -i %s {local_path} %s@%s:{server_path}" % (self.server._KeyFile, self.username, ip)
-
-    @property
-    def scp_cmd_from(self):
-        """
-        scp command to copy files from the server via the **job** EC2 instance.
-
-        Returns
-        ----------
-        * (string): command with "{}" placeholders for `server_path` and `local_path`.
-            If the server is not yet started and <AWSEC2Job.ip> is not available,
-            the ip will be replaced with {ip}
-        """
-        try:
-            ip = self.ip
-        except:
-            ip = "{ip}"
-
-        return "scp -i %s %s@%s:{server_path} {local_path}" % (self.server._KeyFile, self.username, ip)
 
     def wait_for_state(self, state='running', error_if=[], sleeptime=0.5):
         """
@@ -400,6 +348,10 @@ class AWSEC2Job(_common.ServerJob):
         elif state in ['terminated', 'shutting-down', 'stopping']:
             raise ValueError("cannot start: current state is {}".format(state))
 
+        server_state = self.server.state
+        if server_state not in ['not-started', 'terminated']:
+            raise ValueError("cannot start job EC2 instance while server state is {}.".format(server_state))
+
         if self.instanceId is None:
             ec2_init_kwargs = self._ec2_init_kwargs.copy()
             ec2_init_kwargs['TagSpecifications'] = [{'ResourceType': 'instance', 'Tags': [{'Key': 'crimpl.level', 'Value': 'job'}, {'Key': 'crimpl.job_name', 'Value': self.job_name}, {'Key': 'crimpl.server_name', 'Value': self.server.server_name}, {'Key': 'crimpl.version', 'Value': _common.__version__}]}]
@@ -426,7 +378,7 @@ class AWSEC2Job(_common.ServerJob):
         _sleep(30)
 
         print("mounting server volume on job EC2 instance...")
-        cmd = self.ssh_cmd + " \"sudo mkdir crimpl_server; {mkfs_cmd}sudo mount /dev/xvdh crimpl_server; sudo chown {username} crimpl_server; sudo chgrp {username} crimpl_server\"".format(username=self.username, mkfs_cmd="sudo mkfs -t xfs /dev/xvdh; " if self.server._volume_needs_format else "")
+        cmd = self.server.ssh_cmd + " \"sudo mkdir crimpl_server; {mkfs_cmd}sudo mount /dev/xvdh crimpl_server; sudo chown {username} crimpl_server; sudo chgrp {username} crimpl_server\"".format(username=self.username, mkfs_cmd="sudo mkfs -t xfs /dev/xvdh; " if self.server._volume_needs_format else "")
 
         print("running: {}".format(cmd))
         _os.system(cmd)
@@ -561,14 +513,15 @@ class AWSEC2Job(_common.ServerJob):
             if not _os.path.isfile(f):
                 raise ValueError("cannot find file at {}".format(f))
 
-        mkdir_cmd = self.ssh_cmd+" \"mkdir -p {}\"".format(self.remote_directory)
+        mkdir_cmd = self.server.ssh_cmd+" \"mkdir -p {}\"".format(self.remote_directory)
+        logfiles_cmd = self.server.ssh_cmd+" \"echo \'{}\' >> {}\"".format(" ".join([_os.path.basename(f) for f in files]), _os.path.join(self.remote_directory, "crimpl-input-files.list"))
 
-        scp_cmd = self.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.remote_directory)
+        scp_cmd = self.server.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.remote_directory)
 
-        cmd = self.ssh_cmd
+        cmd = self.server.ssh_cmd
         cmd += " \"cd {remote_directory}; chmod +x {script_name}; {screen} sh {script_name}\"".format(remote_directory=self.remote_directory, script_name="crimpl_script.sh", screen="screen -m -d " if use_screen else "")
 
-        return [mkdir_cmd, scp_cmd, cmd]
+        return [mkdir_cmd, scp_cmd, logfiles_cmd, cmd]
 
     def run_script(self, script, files=[], trial_run=False):
         """
@@ -694,20 +647,20 @@ class AWSEC2Job(_common.ServerJob):
 
         return self
 
-    def check_output(self, server_path, local_path="./",
-                     wait_for_output=False,
+    def check_output(self, server_path=None, local_path="./",
                      terminate_if_server_started=False):
         """
         Attempt to copy a file(s) back from the remote server.
 
         Arguments
         -----------
-        * `server_path` (string or list): path(s) (relative to `directory`) on the server
-            of the file(s) to retrieve.  See <AWSEC2Job.job_files> for a list
-            of available files on ther remote server.
+        * `server_path` (string or list or None, optional, default=None): path(s)
+            (relative to `directory`) on the server of the file(s) to retrieve.
+            If not provided or None, will default to <<class>.output_files>.
+            See also: <<class>.ls> or <<class>.job_files> for a full list of
+            available files on the remote server.
         * `local_path` (string, optional, default="./"): local path to copy
             the retrieved file.
-        * `wait_for_output` (bool, optional, default=False): NOT IMPLEMENTED
         * `terminate_if_server_started` (bool, optional, default=False): whether
             the server EC2 instance should immediately be terminated if it
             was started in order to retrieve the files from the volume.
@@ -719,23 +672,13 @@ class AWSEC2Job(_common.ServerJob):
         * None
 
         """
-        if wait_for_output:
-            raise NotImplementedError("wait_for_output not yet implemented")
 
         did_restart = False
-        if self.state == 'running':
-            ec2_instance = self._instance
-            scp_cmd_from = self.scp_cmd_from
-        elif self.server.state == 'running':
-            ec2_instance = self.server._instance
-            scp_cmd_from = self.server.scp_cmd_from
-        else:
+        if self.state != 'running' and self.server.state != 'running':
             self.server.start()  # wait is always True
-            ec2_instance = self.server._instance
-            scp_cmd_from = self.server.scp_cmd_from
             did_restart = True
 
-        super().check_output(server_path, local_path, wait_for_output)
+        super().check_output(server_path, local_path)
 
         if did_restart and terminate_if_server_started:
             self.server.terminate()
@@ -817,6 +760,7 @@ class AWSEC2Server(_common.Server):
                                  'MaxCount': 1,
                                  'MinCount': 1}
 
+        self._ImageId = 'ami-03d315ad33b9d49c4',
         self._username = "ubuntu"
 
         self._volume_needs_format = False
@@ -927,18 +871,41 @@ class AWSEC2Server(_common.Server):
     def _volume(self):
         return _ec2_resource.Volume(self._volumeId)
 
-    def delete_volume(self):
+    def delete_volume(self, terminate_instances=True):
         """
         Delete the AWS EC2 **server** volume.  Once deleted, servers and jobs
         will no longer be accessible and a new <AWSEC2Server> instance must be created
         for additional submissions.
 
+        If `terminate_instances` is True (as it is by default), any EC2 instances
+        in <crimpl.list_awsec2_instances> with this <AWSEC2Server.server_name>
+        will be terminated first.
+
+        Arguments
+        ----------
+        * `terminate_instances` (bool, optional, default=True): whether to first
+            check for any non-terminated **server** or **job** EC2 instances
+            and terminate them.
+
         Returns
         -----------
         * None
         """
+        if terminate_instances:
+            matching_ec2s = [d for d in list_awsec2_instances().values() if d['crimpl.server_name'] == self.server_name]
+            matching_instances = [d['instanceId'] for d in matching_ec2s]
+            if len(matching_instances):
+                print("terminating ec2 instances {}...".format(matching_instances))
+                _ec2_client.terminate_instances(InstanceIds=matching_instances)
+
+                print("waiting for ec2 instances to terminate...")
+                for instanceId in matching_instances:
+                    instance = _ec2_resource.Instance(instanceId)
+                    while instance.state['Name'] != 'terminated':
+                        _sleep(0.5)
+
         # TODO: check status of server, MUST be terminated
-        if self._instanceId is not None and self.state != 'terminated':
+        elif self._instanceId is not None and self.state != 'terminated':
             raise ValueError("server must be terminated before deleting volume")
 
         # TODO: other checks?  Make sure NO instance is attached to the volume and raise helpful errors
@@ -964,13 +931,17 @@ class AWSEC2Server(_common.Server):
     @property
     def state(self):
         """
-        Current state of the EC2 instance.  Can be one of:
+        Current state of the **server** EC2 instance.  Can be one of:
         * pending
         * running
         * shutting-down
         * terminated
         * stopping
         * stopped
+
+        See also:
+
+        <AWSEC2Job.state>
 
         Returns
         -----------
@@ -998,7 +969,7 @@ class AWSEC2Server(_common.Server):
     def ip(self):
         """
         Public IP address of the **server** EC2 instance, if its running, or one
-        of its children **job** EC2 instances, if availabl3.
+        of its children **job** EC2 instances, if available.
 
         Returns
         ------------
@@ -1090,9 +1061,12 @@ class AWSEC2Server(_common.Server):
             `nprocs` will be rounded up to the next available instance meeting
             those available requirements.
         * `InstanceType` (string, optional, default=None):
-        * `ImageId` (string, optional, default='ami-03d315ad33b9d49c4'):
+        * `ImageId` (string, optional, default=None):  ImageId of the **job**
+            EC2 instance.  If None or not provided, will default to the same
+            as the **server** EC2 instance (Ubuntu 20.04).
         * `username` (string, optional, default='ubuntu'): username required
-            to log in to the **job** EC2 instance.
+            to log in to the **job** EC2 instance.  If None or not provided,
+            will default to <AWSEC2Server.username>.
         * `start` (bool, optional, default=False): whether to immediately start
             the **job** EC2 instance.
 
@@ -1102,7 +1076,8 @@ class AWSEC2Server(_common.Server):
         """
         return self._JobClass(server=self, job_name=job_name,
                               nprocs=nprocs, InstanceType=InstanceType,
-                              ImageId=ImageId, username=username,
+                              ImageId=self._ImageId if ImageId is None else ImageId,
+                              username=self.username if username is None else username,
                               start=start, connect_to_existing=False)
 
 
@@ -1165,7 +1140,7 @@ class AWSEC2Server(_common.Server):
         if self.instanceId is None:
             ec2_init_kwargs = self._ec2_init_kwargs.copy()
             ec2_init_kwargs['InstanceType'], nprocs = _get_ec2_instance_type(nprocs=1)
-            ec2_init_kwargs['ImageId'] = 'ami-03d315ad33b9d49c4' # Ubuntu 20.04 - provide option for this?
+            ec2_init_kwargs['ImageId'] = self._ImageId # Ubuntu 20.04 ('ami-03d315ad33b9d49c4') - provide option for this?
             ec2_init_kwargs['TagSpecifications'] = [{'ResourceType': 'instance', 'Tags': [{'Key': 'crimpl.level', 'Value': 'server'}, {'Key': 'crimpl.server_name', 'Value': self.server_name}, {'Key': 'crimpl.volumeId', 'Value': self.volumeId}, {'Key': 'crimpl.version', 'Value': _common.__version__}]}]
             response = _ec2_client.run_instances(**ec2_init_kwargs)
             self._instanceId = response['Instances'][0]['InstanceId']
@@ -1282,13 +1257,14 @@ class AWSEC2Server(_common.Server):
                 raise ValueError("cannot find file at {}".format(f))
 
         mkdir_cmd = self.ssh_cmd+" \"mkdir -p {}\"".format(self.directory)
+        logfiles_cmd = self.server.ssh_cmd+" \"echo \'{}\' >> {}\"".format(" ".join([_os.path.basename(f) for f in files]), _os.path.join(self.remote_directory, "crimpl-input-files.list"))
 
         scp_cmd = self.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.directory)
 
         cmd = self.ssh_cmd
         cmd += " \"cd {remote_directory}; chmod +x {script_name}; sh {script_name}\"".format(remote_directory=self.directory, script_name="crimpl_script.sh")
 
-        return [mkdir_cmd, scp_cmd, cmd]
+        return [mkdir_cmd, scp_cmd, logfiles_cmd, cmd]
 
     def run_script(self, script, files=[], trial_run=False):
         """

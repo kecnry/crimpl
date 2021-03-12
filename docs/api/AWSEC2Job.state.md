@@ -12,6 +12,7 @@ Current state of the **job** EC2 instance.  Can be one of:
 * stopped
 
 See also:
+
 * &lt;AWSEC2Server.state&gt;
 
 Returns

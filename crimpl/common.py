@@ -3,7 +3,7 @@ import os as _os
 import subprocess as _subprocess
 from time import sleep as _sleep
 
-__version__ = '0.1.0-dev1'
+__version__ = '0.1.0-dev2'
 
 def _new_job_name():
     return _datetime.now().strftime('%Y.%m.%d-%H.%M.%S')
@@ -234,8 +234,7 @@ class ServerJob(object):
 
         return status
 
-    def check_output(self, server_path=None, local_path="./",
-                     wait_for_output=False):
+    def check_output(self, server_path=None, local_path="./"):
         """
         Attempt to copy a file(s) back from the remote server.
 
@@ -248,15 +247,13 @@ class ServerJob(object):
             available files on the remote server.
         * `local_path` (string, optional, default="./"): local path to copy
             the retrieved file.
-        * `wait_for_output` (bool, optional, default=False): NOT IMPLEMENTED
 
 
         Returns
         ----------
         * None
         """
-        if wait_for_output:
-            raise NotImplementedError("wait_for_output not yet implemented")
+
 
         if server_path is None:
             server_path = self.output_files
@@ -267,6 +264,6 @@ class ServerJob(object):
             server_path_str = "%s/{%s}" %  (self.remote_directory, ",".join(server_path))
 
         scp_cmd = self.server.scp_cmd_from.format(server_path=server_path_str, local_path=local_path)
-        # TODO: execute cmd, handle wait_for_output and also handle errors if stopped/terminated before getting results
+        # TODO: execute cmd, and handle errors if stopped/terminated before getting results
         print("running: {}".format(scp_cmd))
         _os.system(scp_cmd)

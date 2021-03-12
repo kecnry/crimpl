@@ -3,7 +3,7 @@
 
 ```py
 
-def check_output(self, server_path=None, local_path='./', wait_for_output=False)
+def check_output(self, server_path=None, local_path='./')
 
 ```
 
@@ -20,7 +20,6 @@ Arguments
     available files on the remote server.
 * `local_path` (string, optional, default="./"): local path to copy
     the retrieved file.
-* `wait_for_output` (bool, optional, default=False): NOT IMPLEMENTED
 
 
 Returns

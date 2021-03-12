@@ -22,9 +22,12 @@ Arguments
     `nprocs` will be rounded up to the next available instance meeting
     those available requirements.
 * `InstanceType` (string, optional, default=None):
-* `ImageId` (string, optional, default='ami-03d315ad33b9d49c4'):
+* `ImageId` (string, optional, default=None):  ImageId of the **job**
+    EC2 instance.  If None or not provided, will default to the same
+    as the **server** EC2 instance (Ubuntu 20.04).
 * `username` (string, optional, default='ubuntu'): username required
-    to log in to the **job** EC2 instance.
+    to log in to the **job** EC2 instance.  If None or not provided,
+    will default to &lt;AWSEC2Server.username&gt;.
 * `start` (bool, optional, default=False): whether to immediately start
     the **job** EC2 instance.
 

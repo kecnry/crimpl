@@ -4,7 +4,7 @@
 
 
 Public IP address of the **server** EC2 instance, if its running, or one
-of its children **job** EC2 instances, if availabl3.
+of its children **job** EC2 instances, if available.
 
 Returns
 ------------
