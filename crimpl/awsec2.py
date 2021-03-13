@@ -51,6 +51,7 @@ def list_awsec2_instances():
     def _instance_to_dict(instance_dict):
         d = {tag['Key']: tag['Value'] for tag in instance_dict['Tags']}
         d['instanceId'] = instance_dict['InstanceId']
+        d['state'] = instance_dict['State']['Name']
         if 'PublicIpAddress' in instance_dict.keys():
             d['ip'] = instance_dict['PublicIpAddress']
         return d
@@ -63,7 +64,7 @@ def list_awsec2_instances():
         return instances
 
     response = _ec2_client.describe_instances(Filters=[{'Name': 'tag-key', 'Values': ['crimpl.version']}])
-    return {instance_dict['InstanceId']: _instance_to_dict(instance_dict) for instance_dict in _get_instances(response)}
+    return {instance_dict['InstanceId']: _instance_to_dict(instance_dict) for instance_dict in _get_instances(response) if instance_dict['State']['Name'] != 'terminated'}
 
 def list_awsec2_volumes():
     """
@@ -760,7 +761,7 @@ class AWSEC2Server(_common.Server):
                                  'MaxCount': 1,
                                  'MinCount': 1}
 
-        self._ImageId = 'ami-03d315ad33b9d49c4',
+        self._ImageId = 'ami-03d315ad33b9d49c4'
         self._username = "ubuntu"
 
         self._volume_needs_format = False
@@ -900,8 +901,7 @@ class AWSEC2Server(_common.Server):
 
                 print("waiting for ec2 instances to terminate...")
                 for instanceId in matching_instances:
-                    instance = _ec2_resource.Instance(instanceId)
-                    while instance.state['Name'] != 'terminated':
+                    while _ec2_resource.Instance(instanceId).state['Name'] != 'terminated':
                         _sleep(0.5)
 
         # TODO: check status of server, MUST be terminated
