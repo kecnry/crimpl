@@ -1,5 +1,6 @@
 from datetime import datetime as _datetime
 import os as _os
+import sys as _sys
 import subprocess as _subprocess
 from time import sleep as _sleep
 
@@ -7,6 +8,10 @@ __version__ = '0.1.0-dev2'
 
 def _new_job_name():
     return _datetime.now().strftime('%Y.%m.%d-%H.%M.%S')
+
+def _run_cmd(cmd):
+    print("crimpl running: {}".format(cmd))
+    return _subprocess.check_output(cmd, shell=True).decode('utf-8').strip()
 
 class Server(object):
     def __init__(self, directory=None):
@@ -80,6 +85,39 @@ class Server(object):
             return False
         return True
 
+    def _get_conda_environments_dict(self):
+        """
+
+        Returns
+        ---------
+        * (dict)
+        """
+        out = self._run_ssh_cmd("conda info --envs")
+        crimpl_env_dir = _os.path.join(self.directory, "crimpl-envs").replace("~", "")
+
+        # force local to override global
+        d = {line.split()[0].split("/")[-1]: line.split()[-1] for line in out.split("\n")[3:] if len(line.split()) > 1}
+        for line in out.split("\n")[3:]:
+            if len(line.split()) == 1 and crimpl_env_dir in line:
+                d[line.strip().split("/")[-1]] = line.strip()
+        return d
+
+    @property
+    def conda_environments(self):
+        """
+        List (existing) available conda environments and their paths on the remote server.
+
+        These will include those created at the root level (either within or outside crimpl)
+        as well as those created by this <<class>> (which are stored in <<class>.directory>).
+        In the case where the same name is available at the root level and created by
+        this <<class>>, the one created by <<class>> will take precedence.
+
+        Returns
+        --------
+        * (list)
+        """
+        return list(self._get_conda_environments_dict().keys())
+
     def _create_crimpl_directory(self):
 
         if self._directory_exists:
@@ -111,10 +149,13 @@ class Server(object):
 
         return self.conda_installed
 
-    def create_job(self, job_name=None):
+    def create_job(self, job_name=None, conda_environment=None):
         """
         """
-        return self._JobClass(server=self, job_name=job_name, connect_to_existing=False)
+        return self._JobClass(server=self,
+                              job_name=job_name,
+                              conda_environment=conda_environment,
+                              connect_to_existing=False)
 
     def get_job(self, job_name=None):
         """
@@ -122,11 +163,16 @@ class Server(object):
         return self._JobClass(server=self, job_name=job_name, connect_to_existing=True)
 
 class ServerJob(object):
-    def __init__(self, server, job_name=None, job_submitted=False):
+    def __init__(self, server, job_name=None, conda_environment=None, job_submitted=False):
         self._server = server
 
         self._job_name = job_name
         self._job_submitted = job_submitted
+
+        self.conda_environment = conda_environment
+
+        # allow caching once the environment exists
+        self._conda_environment_exists = False
 
         # allow for caching remote_directory
         self._remote_directory = None
@@ -143,6 +189,84 @@ class ServerJob(object):
         Access the parent server object
         """
         return self._server
+
+    @property
+    def conda_environment(self):
+        """
+        Name of the conda environment to use for any future calls
+        to <<class>.run_script> or <<class>.submit_script>.
+
+        If the environment does not exist, it will be created during the next
+        call to <<class>.run_script> or <<class>.submit_script>.
+
+        See also:
+
+        * <class>.conda_environment_exists>
+        * <Server.conda_environments>
+
+        Returns
+        -----------
+        * (str): name or path of the conda environment on the remote server.
+        """
+        if self._conda_environment is None:
+            return 'default'
+
+        return self._conda_environment
+
+    @conda_environment.setter
+    def conda_environment(self, conda_environment):
+        """
+        Set the conda environment to use for any future calls to <<class>.run_script>
+        or <<class>.submit_script>.
+
+        Arguments
+        ------------
+        * `conda_environment` (string or None): name of the conda environment, or
+            None to use the 'default' environment stored in the server crimpl directory.
+        """
+        # TODO: only allow changing before submission
+
+        # make sure a valid string
+
+
+        if not (isinstance(conda_environment, str) or conda_environment is None):
+            raise TypeError("conda_environment must be a string or None")
+
+        if isinstance(conda_environment, str) and "/" in conda_environment:
+            raise ValueError("conda_environment should be alpha-numeric (and -/_) only")
+
+        self._conda_environment = conda_environment
+
+    @property
+    def conda_environment_exists(self):
+        """
+        Check whether <<class>.conda_environment> exists on the remote machine.
+
+        Returns
+        ----------
+        * (bool)
+        """
+        if not self._conda_environment_exists:
+            self._conda_environment_exists = self.conda_environment in self.server.conda_environments
+        return self._conda_environment_exists
+
+    def create_conda_environment(self):
+        """
+        Create a conda environment (in the <<Server>.remote_directory>) named
+        <<class>.conda_environment>.
+
+        This environment will be available to any jobs in this server and will
+        be listed in <<Server>.conda_environments>.  The created environment will
+        use the same version of python as the local version and include both
+        pip and numpy, by default.
+
+        """
+        if self.conda_environment_exists:
+            return
+
+        envpath = _os.path.join(self.server.directory, "crimpl-envs", self.conda_environment)
+        python_version = _sys.version.split()[0]
+        self.server._run_ssh_cmd("conda create -p {envpath} -y pip numpy python={python_version}".format(envpath=envpath, python_version=python_version))
 
     @property
     def job_name(self):

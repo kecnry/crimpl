@@ -122,7 +122,8 @@ def terminate_all_awsec2_instances():
         terminate_awsec2_instance(instanceId)
 
 class AWSEC2Job(_common.ServerJob):
-    def __init__(self, server, job_name=None, connect_to_existing=None,
+    def __init__(self, server, job_name=None, conda_environment=None,
+                 connect_to_existing=None,
                  nprocs=None, InstanceType=None,
                  ImageId='ami-03d315ad33b9d49c4', username='ubuntu',
                  start=False):
@@ -136,6 +137,7 @@ class AWSEC2Job(_common.ServerJob):
             If not provided, one will be created from the current datetime and
             accessible through <RemoteSlurmJob.job_name>.  This `job_name` will
             be necessary to reconnect to a previously submitted job.
+        * `conda_environment`
         * `connect_to_existing` (bool, optional, default=None): NOT YET IMPLEMENTED
         * `nprocs`
         * `InstanceType`
@@ -199,7 +201,9 @@ class AWSEC2Job(_common.ServerJob):
 
         self._nprocs = nprocs
 
-        super().__init__(server, job_name, job_submitted=connect_to_existing)
+        super().__init__(server, job_name,
+                         conda_environment=conda_environment,
+                         job_submitted=connect_to_existing)
 
 
         self._ec2_init_kwargs = {'InstanceType': InstanceType,
@@ -1043,7 +1047,7 @@ class AWSEC2Server(_common.Server):
 
         return "scp -i %s %s@%s:{server_path} {local_path}" % (self._KeyFile, self.username, ip)
 
-    def create_job(self, job_name=None, nprocs=4,
+    def create_job(self, job_name=None, conda_environment=None, nprocs=4,
                    InstanceType=None,
                    ImageId='ami-03d315ad33b9d49c4', username='ubuntu',
                    start=False):
@@ -1056,6 +1060,7 @@ class AWSEC2Server(_common.Server):
             If not provided, one will be created from the current datetime and
             accessible through <AWSEC2Job.job_name>.  This `job_name` will
             be necessary to reconnect to a previously submitted job.
+        * `conda_environment`
         * `nprocs` (int, optional, default=4): number of processors for the
             **job** EC2 instance.  The `InstanceType` will be determined and
             `nprocs` will be rounded up to the next available instance meeting
@@ -1075,6 +1080,7 @@ class AWSEC2Server(_common.Server):
         * <AWSEC2Job>
         """
         return self._JobClass(server=self, job_name=job_name,
+                              conda_environment=conda_environment,
                               nprocs=nprocs, InstanceType=InstanceType,
                               ImageId=self._ImageId if ImageId is None else ImageId,
                               username=self.username if username is None else username,

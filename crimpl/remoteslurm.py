@@ -7,7 +7,7 @@ from . import common as _common
 
 class RemoteSlurmJob(_common.ServerJob):
     def __init__(self, server=None,
-                 job_name=None, nprocs=4,
+                 job_name=None, conda_environment=None, nprocs=4,
                  slurm_id=None, connect_to_existing=None):
         """
         Create and submit a job on a <RemoteSlurmServer>.
@@ -26,6 +26,7 @@ class RemoteSlurmJob(_common.ServerJob):
             If not provided, one will be created from the current datetime and
             accessible through <RemoteSlurmJob.job_name>.  This `job_name` will
             be necessary to reconnect to a previously submitted job.
+        * `conda_environment`
         * `nprocs` (int, optional, default=4): default number of procs to use
             when calling <RemoteSlurmJob.submit_job>
         * `slurm_id` (int, optional, default=None): internal id of the remote
@@ -64,7 +65,9 @@ class RemoteSlurmJob(_common.ServerJob):
 
         self._nprocs = nprocs
 
-        super().__init__(server, job_name, job_submitted=connect_to_existing)
+        super().__init__(server, job_name,
+                         conda_environment=conda_environment,
+                         job_submitted=connect_to_existing)
 
     def __repr__(self):
         return "<RemoteSlurmJob job_name={}>".format(self.job_name)
@@ -530,7 +533,7 @@ class RemoteSlurmServer(_common.Server):
         """
         return _subprocess.check_output(self.ssh_cmd+" \"ls\"", shell=True).decode('utf-8').strip()
 
-    def create_job(self, job_name=None, nprocs=4):
+    def create_job(self, job_name=None, conda_environment=None, nprocs=4):
         """
         Create a child <RemoteSlurmJob> instance.
 
@@ -540,6 +543,7 @@ class RemoteSlurmServer(_common.Server):
             If not provided, one will be created from the current datetime and
             accessible through <RemoteSlurmJob.job_name>.  This `job_name` will
             be necessary to reconnect to a previously submitted job.
+        * `conda_environment`
         * `nprocs` (int, optional, default=4): default number of procs to use
             when calling <RemoteSlurmJob.submit_job>
 
@@ -548,6 +552,7 @@ class RemoteSlurmServer(_common.Server):
         * <RemoteSlurmJob>
         """
         return self._JobClass(server=self, job_name=job_name,
+                              conda_environment=conda_environment,
                               nprocs=nprocs, connect_to_existing=False)
 
     def _submit_script_cmds(self, script, files):
