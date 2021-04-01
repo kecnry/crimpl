@@ -30,10 +30,9 @@ class Server(object):
         raise NotImplementedError("{} does not subclass ssh_cmd".format(self.__class__.__name__))
 
     def _run_ssh_cmd(self, cmd):
-        # ssh_cmd = self.ssh_cmd+" \'export PATH=\"{directory}/crimpl-bin:$PATH\"; {cmd}\'".format(directory=self.directory.replace("~", "$HOME"), cmd=cmd)
-        ssh_cmd = self.ssh_cmd+" \'{cmd}\'".format(directory=self.directory.replace("~", "$HOME"), cmd=cmd)
-        print(ssh_cmd)
-        return _subprocess.check_output(ssh_cmd, shell=True).decode('utf-8').strip()
+        ssh_cmd = self.ssh_cmd+" \'export PATH=\"{directory}/crimpl-bin:$PATH\"; {cmd}\'".format(directory=self.directory.replace("~", "$HOME"), cmd=cmd)
+        # ssh_cmd = self.ssh_cmd+" \'{cmd}\'".format(directory=self.directory.replace("~", "$HOME"), cmd=cmd)
+        return _run_cmd(ssh_cmd)
 
     @property
     def scp_cmd_to(self):
@@ -446,5 +445,4 @@ class ServerJob(object):
 
         scp_cmd = self.server.scp_cmd_from.format(server_path=server_path_str, local_path=local_path)
         # TODO: execute cmd, and handle errors if stopped/terminated before getting results
-        print("running: {}".format(scp_cmd))
-        _os.system(scp_cmd)
+        _run_cmd(scp_cmd)

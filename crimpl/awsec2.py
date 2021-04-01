@@ -385,8 +385,7 @@ class AWSEC2Job(_common.ServerJob):
         print("mounting server volume on job EC2 instance...")
         cmd = self.server.ssh_cmd + " \"sudo mkdir crimpl_server; {mkfs_cmd}sudo mount /dev/xvdh crimpl_server; sudo chown {username} crimpl_server; sudo chgrp {username} crimpl_server\"".format(username=self.username, mkfs_cmd="sudo mkfs -t xfs /dev/xvdh; " if self.server._volume_needs_format else "")
 
-        print("running: {}".format(cmd))
-        _os.system(cmd)
+        _common._run_cmd(cmd)
         self.server._volume_needs_format = False
 
         return self.state
@@ -479,9 +478,7 @@ class AWSEC2Job(_common.ServerJob):
         else:
             # then we have an instance and we can check its state via ssh
             try:
-                cmd = self.server.ssh_cmd+" \"cat {}\"".format(_os.path.join(self.remote_directory, "crimpl-job.status"))
-                # print("running: ", cmd)
-                response = _subprocess.check_output(cmd, shell=True).decode('utf-8').strip()
+                response = self.server._run_ssh_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl-job.status")))
             except _subprocess.CalledProcessError:
                 return 'unknown'
 
@@ -572,11 +569,9 @@ class AWSEC2Job(_common.ServerJob):
             return cmds
 
         for cmd in cmds:
-            print("running: {}".format(cmd))
-
             # TODO: get around need to add IP to known hosts (either by
             # expecting and answering yes, or by looking into subnet options)
-            _os.system(cmd)
+            _common._run_cmd(cmd)
 
         return
 
@@ -638,11 +633,9 @@ class AWSEC2Job(_common.ServerJob):
             return cmds
 
         for cmd in cmds:
-            print("running: {}".format(cmd))
-
             # TODO: get around need to add IP to known hosts (either by
             # expecting and answering yes, or by looking into subnet options)
-            _os.system(cmd)
+            _common._run_cmd(cmd)
 
         self._job_submitted = True
         self._input_files = None
@@ -1179,8 +1172,7 @@ class AWSEC2Server(_common.Server):
 
         print("mounting volume on server EC2 instance...")
         cmd = self.ssh_cmd + " \"sudo mkdir crimpl_server; {mkfs_cmd}sudo mount /dev/xvdh crimpl_server; sudo chown {username} crimpl_server; sudo chgrp {username} crimpl_server\"".format(username=self.username, mkfs_cmd="sudo mkfs -t xfs /dev/xvdh; " if self._volume_needs_format else "")
-        print("running: {}".format(cmd))
-        _os.system(cmd)
+        _common._run_cmd(cmd)
         self._volume_needs_format = False
 
         return self.state
@@ -1320,10 +1312,8 @@ class AWSEC2Server(_common.Server):
             return cmds
 
         for cmd in cmds:
-            print("running: {}".format(cmd))
-
             # TODO: get around need to add IP to known hosts (either by
             # expecting and answering yes, or by looking into subnet options)
-            _os.system(cmd)
+            _common._run_cmd(cmd)
 
         return

@@ -95,7 +95,7 @@ class RemoteSlurmJob(_common.ServerJob):
         if self._slurm_id is None:
             # attempt to get slurm id from server
             try:
-                out = _subprocess.check_output(self.server.ssh_cmd+" \"cat {}\"".format(_os.path.join(self.remote_directory, "crimpl_slurm_id")), shell=True).decode('utf-8').strip()
+                out = self.server._run_ssh_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl_slurm_id")))
                 self._slurm_id = int(float(out))
             except:
                 raise ValueError("No job has been submitted, call submit_script")
@@ -112,7 +112,7 @@ class RemoteSlurmJob(_common.ServerJob):
         -----------
         * (string)
         """
-        return _subprocess.check_output(self.server.ssh_cmd+" \"squeue -j {}\"".format(self.slurm_id), shell=True).decode('utf-8').strip()
+        return self.server._run_ssh_cmd("squeue -j {}".format(self.slurm_id))
 
     @property
     def job_status(self):
@@ -140,7 +140,7 @@ class RemoteSlurmJob(_common.ServerJob):
             # then no longer in the queue, so we'll rely on the status file
 
             try:
-                response = _subprocess.check_output(self.server.ssh_cmd+" \"cat {}\"".format(_os.path.join(self.remote_directory, "crimpl-job.status")), shell=True).decode('utf-8').strip()
+                response = self.server._run_ssh_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl-job.status")))
             except _subprocess.CalledProcessError:
                 return 'unknown'
 
@@ -294,7 +294,7 @@ class RemoteSlurmJob(_common.ServerJob):
 
             # TODO: get around need to add IP to known hosts (either by
             # expecting and answering yes, or by looking into subnet options)
-            _os.system(cmd)
+            _common._run_cmd(cmd)
 
         return
 
@@ -379,19 +379,15 @@ class RemoteSlurmJob(_common.ServerJob):
             return cmds
 
         for cmd in cmds:
-            print("running: {}".format(cmd))
-
             # TODO: get around need to add IP to known hosts (either by
             # expecting and answering yes, or by looking into subnet options)
-            # _os.system(cmd)
 
-            out = _subprocess.check_output(cmd, shell=True).decode('utf-8').strip()
-            print(out)
+            out = _common._run_cmd(cmd)
             if "sbatch" in cmd:
                 self._slurm_id = out.split(' ')[-1]
 
                 # leave record of slurm id in the remote directory
-                _os.system(self.server.ssh_cmd+" \"echo {} > {}\"".format(self._slurm_id, _os.path.join(self.remote_directory, "crimpl_slurm_id")))
+                self.server._run_ssh_cmd("echo {} > {}".format(self._slurm_id, _os.path.join(self.remote_directory, "crimpl_slurm_id")))
 
 
         self._job_submitted = True
@@ -509,7 +505,7 @@ class RemoteSlurmServer(_common.Server):
         -----------
         * (string)
         """
-        return _subprocess.check_output(self.ssh_cmd+" \"squeue\"", shell=True).decode('utf-8').strip()
+        return self.server._run_ssh_cmd("squeue")
 
     @property
     def sinfo(self):
@@ -520,7 +516,7 @@ class RemoteSlurmServer(_common.Server):
         -----------
         * (string)
         """
-        return _subprocess.check_output(self.ssh_cmd+" \"sinfo\"", shell=True).decode('utf-8').strip()
+        return self.server._run_ssh_cmd("sinfo")
 
     @property
     def ls(self):
@@ -531,7 +527,7 @@ class RemoteSlurmServer(_common.Server):
         -----------
         * (string)
         """
-        return _subprocess.check_output(self.ssh_cmd+" \"ls\"", shell=True).decode('utf-8').strip()
+        return self.server._run_ssh_cmd("ls")
 
     def create_job(self, job_name=None, conda_environment=None, nprocs=4):
         """
@@ -636,6 +632,6 @@ class RemoteSlurmServer(_common.Server):
 
             # TODO: get around need to add IP to known hosts (either by
             # expecting and answering yes, or by looking into subnet options)
-            _os.system(cmd)
+            _common._run_cmd(cmd)
 
         return
