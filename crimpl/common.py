@@ -11,6 +11,7 @@ def _new_job_name():
 class Server(object):
     def __init__(self, directory=None):
         self._directory = directory
+        self._directory_exists = False
 
     def __str__(self):
         return self.__repr__()
@@ -22,6 +23,12 @@ class Server(object):
     @property
     def ssh_cmd(self):
         raise NotImplementedError("{} does not subclass ssh_cmd".format(self.__class__.__name__))
+
+    def _run_ssh_cmd(self, cmd):
+        # ssh_cmd = self.ssh_cmd+" \'export PATH=\"{directory}/crimpl-bin:$PATH\"; {cmd}\'".format(directory=self.directory.replace("~", "$HOME"), cmd=cmd)
+        ssh_cmd = self.ssh_cmd+" \'{cmd}\'".format(directory=self.directory.replace("~", "$HOME"), cmd=cmd)
+        print(ssh_cmd)
+        return _subprocess.check_output(ssh_cmd, shell=True).decode('utf-8').strip()
 
     @property
     def scp_cmd_to(self):
@@ -38,7 +45,7 @@ class Server(object):
         # TODO: override for EC2 to handle whatever servers are running (if the job server is running, have it check the status, otherwise have the server ec2 check the directory)
 
         try:
-            out = _subprocess.check_output(self.ssh_cmd+" \"ls -d {}/crimpl-job-*\"".format(self.directory), shell=True).decode('utf-8').strip()
+            out = self._run_ssh_cmd("ls -d {}/crimpl-job-*".format(self.directory))
         except _subprocess.CalledProcessError:
             return []
 
@@ -53,6 +60,56 @@ class Server(object):
         # TODO: override for EC2 to handle whatever servers are running (if the job server is running, have it check the status, otherwise have the server ec2 check the directory)
 
         return {job_name: self.get_job(job_name).status for job_name in self.existing_jobs}
+
+    @property
+    def conda_installed(self):
+        """
+        Checks if conda is installed on the remote server
+
+        See also:
+
+        * <<class>.install_conda>
+
+        Returns
+        -----------
+        * (bool)
+        """
+        try:
+            out = self._run_ssh_cmd("conda -V")
+        except _subprocess.CalledProcessError:
+            return False
+        return True
+
+    def _create_crimpl_directory(self):
+
+        if self._directory_exists:
+            return True
+
+        try:
+            out = self._run_ssh_cmd("mkdir -p {directory}".format(directory=self.directory))
+        except _subprocess.CalledProcessError:
+            return False
+        self._directory_exists = True
+        return True
+
+
+    def install_conda(self):
+        """
+        Install conda on the remote server if it is not already installed.
+
+        See also:
+
+        * <<class>.conda_installed>
+        """
+        if self.conda_installed:
+            return
+
+        self._create_crimpl_directory()
+
+        # out = self._run_ssh_cmd("cd {directory}; wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh; sh Miniconda3-latest-Linux-x86_64.sh -u -b -p ./crimpl-conda; mkdir ./crimpl-bin; cp ./crimpl-conda/bin/conda ./crimpl-bin/conda; conda init".format(directory=self.directory))
+        out = self._run_ssh_cmd("cd {directory}; wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh; sh Miniconda3-latest-Linux-x86_64.sh -u -b -p ./crimpl-conda; ./crimpl-conda/bin/conda init".format(directory=self.directory))
+
+        return self.conda_installed
 
     def create_job(self, job_name=None):
         """
@@ -131,7 +188,7 @@ class ServerJob(object):
         ----------
         * (list)
         """
-        response = _subprocess.check_output(self.server.ssh_cmd+" \"ls {}/*\"".format(self.remote_directory), shell=True).decode('utf-8').strip()
+        response = self._run_ssh_cmd("ls {}/*".format(self.remote_directory))
         return [_os.path.basename(f) for f in response.split()]
 
     @property
@@ -172,7 +229,7 @@ class ServerJob(object):
         """
         if self._input_files is None:
 
-            response = _subprocess.check_output(self.server.ssh_cmd+" \"cat {}\"".format(_os.path.join(self.remote_directory, "crimpl-input-files.list")), shell=True).decode('utf-8').strip()
+            response = self._run_ssh_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl-input-files.list")))
             self._input_files = response.split()
 
         return self._input_files
