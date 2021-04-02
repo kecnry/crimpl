@@ -3,7 +3,7 @@
 
 ```py
 
-def create_job(self, job_name=None, nprocs=4, InstanceType=None, ImageId='ami-03d315ad33b9d49c4', username='ubuntu', start=False)
+def create_job(self, job_name=None, conda_environment=None, nprocs=4, InstanceType=None, ImageId='ami-03d315ad33b9d49c4', username='ubuntu', start=False)
 
 ```
 
@@ -17,6 +17,9 @@ Arguments
     If not provided, one will be created from the current datetime and
     accessible through &lt;AWSEC2Job.job_name&gt;.  This `job_name` will
     be necessary to reconnect to a previously submitted job.
+* `conda_environment` (string or None): name of the conda environment to
+    use for the job, or None to use the 'default' environment stored in
+    the server crimpl directory.
 * `nprocs` (int, optional, default=4): number of processors for the
     **job** EC2 instance.  The `InstanceType` will be determined and
     `nprocs` will be rounded up to the next available instance meeting

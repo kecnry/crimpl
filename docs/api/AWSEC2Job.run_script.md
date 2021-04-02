@@ -9,7 +9,8 @@ def run_script(self, script, files=[], trial_run=False)
 
 
 
-Run a script on the **job** server, and wait for it to complete.
+Run a script on the **job** server in the &lt;AWSEC2Job.conda_environment&gt;,
+and wait for it to complete.
 
 See &lt;AWSEC2Job.submit_script&gt; to submit a script to leave running in the background.
 

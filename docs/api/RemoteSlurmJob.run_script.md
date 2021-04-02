@@ -9,7 +9,8 @@ def run_script(self, script, files=[], trial_run=False)
 
 
 
-Run a script on the server, and wait for it to complete.
+Run a script on the server in the [RemoteSlurmJob.conda_environment](RemoteSlurmJob.conda_environment.md),
+and wait for it to complete.
 
 This is useful for short installation/setup scripts that do not belong
 in the scheduled job.

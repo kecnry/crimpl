@@ -10,7 +10,9 @@ def _new_job_name():
     return _datetime.now().strftime('%Y.%m.%d-%H.%M.%S')
 
 def _run_cmd(cmd):
-    print("crimpl running: {}".format(cmd))
+    if cmd is None:
+        return
+    print("# crimpl: {}".format(cmd))
     return _subprocess.check_output(cmd, shell=True).decode('utf-8').strip()
 
 class Server(object):
@@ -26,11 +28,23 @@ class Server(object):
         return self._directory
 
     @property
+    def _ssh_cmd(self):
+        raise NotImplementedError("{} does not subclass _ssh_cmd".format(self.__class__.__name__))
+
+    @property
     def ssh_cmd(self):
-        raise NotImplementedError("{} does not subclass ssh_cmd".format(self.__class__.__name__))
+        """
+        ssh command to the server
+
+        Returns
+        ----------
+        * (string): command with "{}" placeholders for the command to run on the remote machine.
+        """
+        return "%s \'export PATH=\"%s/crimpl-bin:$PATH\"; {}\'" % (self._ssh_cmd, self.directory.replace("~", "$HOME"))
 
     def _run_ssh_cmd(self, cmd):
-        ssh_cmd = self.ssh_cmd+" \'export PATH=\"{directory}/crimpl-bin:$PATH\"; {cmd}\'".format(directory=self.directory.replace("~", "$HOME"), cmd=cmd)
+        ssh_cmd = self.ssh_cmd.format(cmd)
+        # ssh_cmd = self.ssh_cmd+" \'export PATH=\"{directory}/crimpl-bin:$PATH\"; {cmd}\'".format(directory=self.directory.replace("~", "$HOME"), cmd=cmd)
         # ssh_cmd = self.ssh_cmd+" \'{cmd}\'".format(directory=self.directory.replace("~", "$HOME"), cmd=cmd)
         return _run_cmd(ssh_cmd)
 
@@ -116,6 +130,34 @@ class Server(object):
         * (list)
         """
         return list(self._get_conda_environments_dict().keys())
+
+    def _create_conda_environment(self, conda_environment, check_if_exists=True, run_cmd=True):
+        """
+        """
+        if not (isinstance(conda_environment, str) or conda_environment is None):
+            raise TypeError("conda_environment must be a string or None")
+
+        if isinstance(conda_environment, str) and "/" in conda_environment:
+            raise ValueError("conda_environment should be alpha-numeric (and -/_) only")
+
+        if conda_environment is None:
+            conda_environment = 'default'
+
+        if check_if_exists:
+            conda_envs_dict = self._get_conda_environments_dict()
+            if conda_environment in conda_envs_dict.keys():
+                return None, conda_envs_dict.get(conda_environment)
+
+        envpath = _os.path.join(self.directory, "crimpl-envs", conda_environment)
+        python_version = _sys.version.split()[0]
+
+        cmd = "conda create -p {envpath} -y pip numpy python={python_version}".format(envpath=envpath, python_version=python_version)
+
+        if run_cmd:
+            return self._run_ssh_cmd(cmd), envpath
+        else:
+            return self.ssh_cmd.format(cmd), envpath
+
 
     def _create_crimpl_directory(self):
 
@@ -263,9 +305,7 @@ class ServerJob(object):
         if self.conda_environment_exists:
             return
 
-        envpath = _os.path.join(self.server.directory, "crimpl-envs", self.conda_environment)
-        python_version = _sys.version.split()[0]
-        self.server._run_ssh_cmd("conda create -p {envpath} -y pip numpy python={python_version}".format(envpath=envpath, python_version=python_version))
+        return self.server._create_conda_environment(conda_environment, check_if_exists=False)
 
     @property
     def job_name(self):
@@ -289,7 +329,7 @@ class ServerJob(object):
         """
         if self._remote_directory is None:
             # NOTE: for AWSEC2 self.server.ssh_cmd may point to the job EC2 instance if the server is not running
-            home_dir = _subprocess.check_output(self.server.ssh_cmd+" \"pwd\"", shell=True).decode('utf-8').strip()
+            home_dir = self.server._run_ssh_cmd("pwd")
             if "~" in self.server.directory:
                 self._remote_directory = _os.path.join(self.server.directory.replace("~", home_dir), "crimpl-job-{}".format(self.job_name))
             else:

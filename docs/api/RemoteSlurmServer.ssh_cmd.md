@@ -7,5 +7,5 @@ ssh command to the server
 
 Returns
 ----------
-* (string)
+* (string): command with "{}" placeholders for the command to run on the remote machine.
 

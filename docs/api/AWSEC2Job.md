@@ -2,6 +2,9 @@
 
 * [__init__](AWSEC2Job.__init__.md)
 * [check_output](AWSEC2Job.check_output.md)
+* [conda_environment](AWSEC2Job.conda_environment.md)
+* [conda_environment_exists](AWSEC2Job.conda_environment_exists.md)
+* [create_conda_environment](AWSEC2Job.create_conda_environment.md)
 * [input_files](AWSEC2Job.input_files.md)
 * [instanceId](AWSEC2Job.instanceId.md)
 * [ip](AWSEC2Job.ip.md)

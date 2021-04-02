@@ -26,7 +26,9 @@ class RemoteSlurmJob(_common.ServerJob):
             If not provided, one will be created from the current datetime and
             accessible through <RemoteSlurmJob.job_name>.  This `job_name` will
             be necessary to reconnect to a previously submitted job.
-        * `conda_environment`
+        * `conda_environment` (string or None): name of the conda environment to
+            use for the job, or None to use the 'default' environment stored in
+            the server crimpl directory.
         * `nprocs` (int, optional, default=4): default number of procs to use
             when calling <RemoteSlurmJob.submit_job>
         * `slurm_id` (int, optional, default=None): internal id of the remote
@@ -209,6 +211,8 @@ class RemoteSlurmJob(_common.ServerJob):
                                   'mail_type': '--mail-type=',
                                   'mail_user': '--mail-user='}
 
+        create_env_cmd, conda_env_path = self.server._create_conda_environment(self.conda_environment, check_if_exists=True, run_cmd=False)
+
         if use_slurm:
             slurm_script = ["#!/bin/bash"]
             # TODO: use job subdirectory
@@ -219,10 +223,12 @@ class RemoteSlurmJob(_common.ServerJob):
                     raise NotImplementedError("slurm command for {} not implemented".format(k))
                 slurm_script += ["#SBATCH {}{}".format(prefix, v)]
 
-            script = slurm_script + ["\n\n"] + ["echo \'running\' > crimpl-job.status"] + script + ["echo \'complete\' > crimpl-job.status"]
+            script = slurm_script + ["\n\n", "eval \"$(conda shell.bash hook)\"", "conda activate {}".format(conda_env_path)] + ["echo \'running\' > crimpl-job.status"] + script + ["echo \'complete\' > crimpl-job.status"]
 
         # TODO: use tmp file instead
         f = open('crimpl_script.sh', 'w')
+        if not use_slurm:
+            f.write("eval \"$(conda shell.bash hook)\"\nconda activate {}\n".format(conda_env_path))
         f.write("\n".join(script))
         f.close()
 
@@ -232,25 +238,27 @@ class RemoteSlurmJob(_common.ServerJob):
             if not _os.path.isfile(f):
                 raise ValueError("cannot find file at {}".format(f))
 
-        mkdir_cmd = self.server.ssh_cmd+" \"mkdir -p {}\"".format(self.remote_directory)
-        logfiles_cmd = self.server.ssh_cmd+" \"echo \'{}\' >> {}\"".format(" ".join([_os.path.basename(f) for f in files]), _os.path.join(self.remote_directory, "crimpl-input-files.list"))
+        mkdir_cmd = self.server.ssh_cmd.format("mkdir -p {}".format(self.remote_directory))
+        logfiles_cmd = self.server.ssh_cmd.format("echo \'{}\' >> {}".format(" ".join([_os.path.basename(f) for f in files]), _os.path.join(self.remote_directory, "crimpl-input-files.list"))) if len(files) else None
 
         # TODO: use job subdirectory for server_path
         scp_cmd = self.server.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.remote_directory+"/")
 
         cmd = self.server.ssh_cmd
-        # TODO: job subdirectory here
-        remote_script = _os.path.join(self.remote_directory, _os.path.basename("crimpl_script.sh"))
         if use_slurm:
-            cmd += " \"sbatch {remote_script}\"".format(remote_script=remote_script)
+            remote_script = _os.path.join(self.remote_directory, _os.path.basename("crimpl_script.sh"))
+            cmd = self.server.ssh_cmd.format("sbatch {remote_script}".format(remote_script=remote_script))
         else:
-            cmd += " \"chmod +x {remote_script}; sh {remote_script}\"".format(remote_script=remote_script)
+            remote_script = "crimpl_script.sh"
+            cmd = self.server.ssh_cmd.format("cd {remote_directory}; chmod +x {remote_script}; sh {remote_script}".format(remote_directory=self.remote_directory,
+                                                                                                                          remote_script=remote_script))
 
-        return [mkdir_cmd, scp_cmd, logfiles_cmd, cmd]
+        return [mkdir_cmd, scp_cmd, logfiles_cmd, create_env_cmd, cmd]
 
     def run_script(self, script, files=[], trial_run=False):
         """
-        Run a script on the server, and wait for it to complete.
+        Run a script on the server in the <<class>.conda_environment>,
+        and wait for it to complete.
 
         This is useful for short installation/setup scripts that do not belong
         in the scheduled job.
@@ -290,8 +298,6 @@ class RemoteSlurmJob(_common.ServerJob):
             return cmds
 
         for cmd in cmds:
-            print("running: {}".format(cmd))
-
             # TODO: get around need to add IP to known hosts (either by
             # expecting and answering yes, or by looking into subnet options)
             _common._run_cmd(cmd)
@@ -307,7 +313,7 @@ class RemoteSlurmJob(_common.ServerJob):
                       wait_for_job_status=False,
                       trial_run=False):
         """
-        Submit a script to the server.
+        Submit a script to the server in the <<class>.conda_environment>.
 
         This will copy `script` (modified with the provided slurm options) and
         `files` to <RemoteSlurmJob.remote_directory> on the remote server and
@@ -379,6 +385,7 @@ class RemoteSlurmJob(_common.ServerJob):
             return cmds
 
         for cmd in cmds:
+            if cmd is None: continue
             # TODO: get around need to add IP to known hosts (either by
             # expecting and answering yes, or by looking into subnet options)
 
@@ -459,7 +466,7 @@ class RemoteSlurmServer(_common.Server):
         return self._host
 
     @property
-    def ssh_cmd(self):
+    def _ssh_cmd(self):
         """
         ssh command to the server
 
@@ -539,7 +546,9 @@ class RemoteSlurmServer(_common.Server):
             If not provided, one will be created from the current datetime and
             accessible through <RemoteSlurmJob.job_name>.  This `job_name` will
             be necessary to reconnect to a previously submitted job.
-        * `conda_environment`
+        * `conda_environment` (string or None): name of the conda environment to
+            use for the job, or None to use the 'default' environment stored in
+            the server crimpl directory.
         * `nprocs` (int, optional, default=4): default number of procs to use
             when calling <RemoteSlurmJob.submit_job>
 
@@ -551,7 +560,7 @@ class RemoteSlurmServer(_common.Server):
                               conda_environment=conda_environment,
                               nprocs=nprocs, connect_to_existing=False)
 
-    def _submit_script_cmds(self, script, files):
+    def _submit_script_cmds(self, script, files, conda_environment=None):
         if isinstance(script, str):
             # TODO: allow for http?
             if not _os.path.isfile(script):
@@ -565,6 +574,10 @@ class RemoteSlurmServer(_common.Server):
 
         # TODO: use tmp file instead
         f = open('crimpl_script.sh', 'w')
+
+        create_env_cmd, conda_env_path = self._create_conda_environment(conda_environment, check_if_exists=True, run_cmd=False)
+
+        f.write("eval \"$(conda shell.bash hook)\"\nconda activate {}\n".format(conda_env_path))
         f.write("\n".join(script))
         f.close()
 
@@ -574,21 +587,19 @@ class RemoteSlurmServer(_common.Server):
             if not _os.path.isfile(f):
                 raise ValueError("cannot find file at {}".format(f))
 
-        mkdir_cmd = self.ssh_cmd+" \"mkdir -p {}\"".format(self.directory)
+        mkdir_cmd = self.ssh_cmd.format("mkdir -p {}".format(self.directory))
 
         # TODO: use job subdirectory for server_path
         scp_cmd = self.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.directory+"/")
 
-        cmd = self.ssh_cmd
-        # TODO: job subdirectory here
-        remote_script = _os.path.join(self.directory, _os.path.basename("crimpl_script.sh"))
-        cmd += " \"chmod +x {remote_script}; sh {remote_script}\"".format(remote_script=remote_script)
+        cmd = self.ssh_cmd.format("cd {remote_directory}; chmod +x {remote_script}; sh {remote_script}".format(remote_directory=self.directory,
+                                                                                                               remote_script="crimpl_script.sh"))
 
-        return [mkdir_cmd, scp_cmd, cmd]
+        return [mkdir_cmd, scp_cmd, create_env_cmd, cmd]
 
-    def run_script(self, script, files=[], trial_run=False):
+    def run_script(self, script, files=[], conda_environment=None, trial_run=False):
         """
-        Run a script on the server, and wait for it to complete.
+        Run a script on the server in the `conda_environment`, and wait for it to complete.
 
         The files are copied and executed in <RemoteSlurmServer.directory> directly
         (whereas <RemoteSlurmJob> scripts are executed in subdirectories).
@@ -610,6 +621,9 @@ class RemoteSlurmServer(_common.Server):
         * `files` (list, optional, default=[]): list of paths to additional files
             to copy to the server required in order to successfully execute
             `script`.
+        * `conda_environment` (string or None): name of the conda environment to
+            run the script, or None to use the 'default' environment stored in
+            the server crimpl directory.
         * `trial_run` (bool, optional, default=False): if True, the commands
             that would be sent to the server are returned but not executed.
 
@@ -623,13 +637,11 @@ class RemoteSlurmServer(_common.Server):
         * TypeError: if `script` or `files` are not valid types.
         * ValueError: if the files referened by `script` or `files` are not valid.
         """
-        cmds = self._submit_script_cmds(script, files, use_slurm=False)
+        cmds = self._submit_script_cmds(script, files, conda_environment=conda_environment)
         if trial_run:
             return cmds
 
         for cmd in cmds:
-            print("running: {}".format(cmd))
-
             # TODO: get around need to add IP to known hosts (either by
             # expecting and answering yes, or by looking into subnet options)
             _common._run_cmd(cmd)

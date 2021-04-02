@@ -137,7 +137,9 @@ class AWSEC2Job(_common.ServerJob):
             If not provided, one will be created from the current datetime and
             accessible through <RemoteSlurmJob.job_name>.  This `job_name` will
             be necessary to reconnect to a previously submitted job.
-        * `conda_environment`
+        * `conda_environment` (string or None): name of the conda environment to
+            use for the job, or None to use the 'default' environment stored in
+            the server crimpl directory.
         * `connect_to_existing` (bool, optional, default=None): NOT YET IMPLEMENTED
         * `nprocs`
         * `InstanceType`
@@ -383,7 +385,7 @@ class AWSEC2Job(_common.ServerJob):
         _sleep(30)
 
         print("mounting server volume on job EC2 instance...")
-        cmd = self.server.ssh_cmd + " \"sudo mkdir crimpl_server; {mkfs_cmd}sudo mount /dev/xvdh crimpl_server; sudo chown {username} crimpl_server; sudo chgrp {username} crimpl_server\"".format(username=self.username, mkfs_cmd="sudo mkfs -t xfs /dev/xvdh; " if self.server._volume_needs_format else "")
+        cmd = self.server.ssh_cmd.format("sudo mkdir crimpl_server; {mkfs_cmd}sudo mount /dev/xvdh crimpl_server; sudo chown {username} crimpl_server; sudo chgrp {username} crimpl_server".format(username=self.username, mkfs_cmd="sudo mkfs -t xfs /dev/xvdh; " if self.server._volume_needs_format else ""))
 
         _common._run_cmd(cmd)
         self.server._volume_needs_format = False
@@ -502,8 +504,11 @@ class AWSEC2Job(_common.ServerJob):
         else:
             script = ["echo \'running\' > crimpl-job.status"] + script + ["echo \'complete\' > crimpl-job.status"]
 
+        create_env_cmd, conda_env_path = self._create_conda_environment(self.conda_environment, check_if_exists=True, run_cmd=False)
+
         # TODO: use tmp file instead
         f = open('crimpl_script.sh', 'w')
+        f.write("eval \"$(conda shell.bash hook)\"\nconda activate {}\n".format(conda_env_path))
         f.write("\n".join(script))
         if terminate_on_complete:
             f.write("\nsudo shutdown now")
@@ -515,19 +520,19 @@ class AWSEC2Job(_common.ServerJob):
             if not _os.path.isfile(f):
                 raise ValueError("cannot find file at {}".format(f))
 
-        mkdir_cmd = self.server.ssh_cmd+" \"mkdir -p {}\"".format(self.remote_directory)
-        logfiles_cmd = self.server.ssh_cmd+" \"echo \'{}\' >> {}\"".format(" ".join([_os.path.basename(f) for f in files]), _os.path.join(self.remote_directory, "crimpl-input-files.list"))
+        mkdir_cmd = self.server.ssh_cmd.format("mkdir -p {}".format(self.remote_directory))
+        logfiles_cmd = self.server.ssh_cmd.format("echo \'{}\' >> {}".format(" ".join([_os.path.basename(f) for f in files]), _os.path.join(self.remote_directory, "crimpl-input-files.list")))
 
         scp_cmd = self.server.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.remote_directory)
 
-        cmd = self.server.ssh_cmd
-        cmd += " \"cd {remote_directory}; chmod +x {script_name}; {screen} sh {script_name}\"".format(remote_directory=self.remote_directory, script_name="crimpl_script.sh", screen="screen -m -d " if use_screen else "")
+        cmd = self.server.ssh_cmd.format("cd {remote_directory}; chmod +x {script_name}; {screen} sh {script_name}".format(remote_directory=self.remote_directory, script_name="crimpl_script.sh", screen="screen -m -d " if use_screen else ""))
 
-        return [mkdir_cmd, scp_cmd, logfiles_cmd, cmd]
+        return [mkdir_cmd, scp_cmd, create_env_cmd, logfiles_cmd, cmd]
 
     def run_script(self, script, files=[], trial_run=False):
         """
-        Run a script on the **job** server, and wait for it to complete.
+        Run a script on the **job** server in the <<class>.conda_environment>,
+        and wait for it to complete.
 
         See <AWSEC2Job.submit_script> to submit a script to leave running in the background.
 
@@ -985,7 +990,7 @@ class AWSEC2Server(_common.Server):
 
 
     @property
-    def ssh_cmd(self):
+    def _ssh_cmd(self):
         """
         ssh command to the **server** EC2 instance (or a child **job** EC2 instance
         if the **server** EC2 instance is not running).
@@ -1053,7 +1058,9 @@ class AWSEC2Server(_common.Server):
             If not provided, one will be created from the current datetime and
             accessible through <AWSEC2Job.job_name>.  This `job_name` will
             be necessary to reconnect to a previously submitted job.
-        * `conda_environment`
+        * `conda_environment` (string or None): name of the conda environment to
+            use for the job, or None to use the 'default' environment stored in
+            the server crimpl directory.
         * `nprocs` (int, optional, default=4): number of processors for the
             **job** EC2 instance.  The `InstanceType` will be determined and
             `nprocs` will be rounded up to the next available instance meeting
@@ -1171,7 +1178,7 @@ class AWSEC2Server(_common.Server):
         _sleep(30)
 
         print("mounting volume on server EC2 instance...")
-        cmd = self.ssh_cmd + " \"sudo mkdir crimpl_server; {mkfs_cmd}sudo mount /dev/xvdh crimpl_server; sudo chown {username} crimpl_server; sudo chgrp {username} crimpl_server\"".format(username=self.username, mkfs_cmd="sudo mkfs -t xfs /dev/xvdh; " if self._volume_needs_format else "")
+        cmd = self.ssh_cmd.format("sudo mkdir crimpl_server; {mkfs_cmd}sudo mount /dev/xvdh crimpl_server; sudo chown {username} crimpl_server; sudo chgrp {username} crimpl_server".format(username=self.username, mkfs_cmd="sudo mkfs -t xfs /dev/xvdh; " if self._volume_needs_format else ""))
         _common._run_cmd(cmd)
         self._volume_needs_format = False
 
@@ -1231,7 +1238,7 @@ class AWSEC2Server(_common.Server):
 
         return self.state
 
-    def _submit_script_cmds(self, script, files):
+    def _submit_script_cmds(self, script, files, conda_environment=None):
         if isinstance(script, str):
             # TODO: allow for http?
             if not _os.path.isfile(script):
@@ -1243,8 +1250,11 @@ class AWSEC2Server(_common.Server):
         if not isinstance(script, list):
             raise TypeError("script must be of type string (path) or list (list of commands)")
 
+        create_env_cmd, conda_env_path = self._create_conda_environment(conda_environment, check_if_exists=True, run_cmd=False)
+
         # TODO: use tmp file instead
         f = open('crimpl_script.sh', 'w')
+        f.write("eval \"$(conda shell.bash hook)\"\nconda activate {}\n".format(conda_env_path))
         f.write("\n".join(script))
         f.close()
 
@@ -1254,20 +1264,19 @@ class AWSEC2Server(_common.Server):
             if not _os.path.isfile(f):
                 raise ValueError("cannot find file at {}".format(f))
 
-        mkdir_cmd = self.ssh_cmd+" \"mkdir -p {}\"".format(self.directory)
-        logfiles_cmd = self.server.ssh_cmd+" \"echo \'{}\' >> {}\"".format(" ".join([_os.path.basename(f) for f in files]), _os.path.join(self.remote_directory, "crimpl-input-files.list"))
+        mkdir_cmd = self.ssh_cmd.format("mkdir -p {}".format(self.directory))
+        logfiles_cmd = self.server.ssh_cmd.format("echo \'{}\' >> {}".format(" ".join([_os.path.basename(f) for f in files]), _os.path.join(self.remote_directory, "crimpl-input-files.list")))
 
         scp_cmd = self.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.directory)
 
-        cmd = self.ssh_cmd
-        cmd += " \"cd {remote_directory}; chmod +x {script_name}; sh {script_name}\"".format(remote_directory=self.directory, script_name="crimpl_script.sh")
+        cmd = self.ssh_cmd.format("cd {remote_directory}; chmod +x {script_name}; sh {script_name}".format(remote_directory=self.directory, script_name="crimpl_script.sh"))
 
         return [mkdir_cmd, scp_cmd, logfiles_cmd, cmd]
 
-    def run_script(self, script, files=[], trial_run=False):
+    def run_script(self, script, files=[], conda_environment=None, trial_run=False):
         """
-        Run a script on the **server** EC2 instance (single processor),
-        and wait for it to complete.
+        Run a script on the **server** EC2 instance (single processor) in the
+        `conda_environment`, and wait for it to complete.
 
         The files are copied and executed in <AWSEC2Server.directory> directly
         (whereas <AWSEC2Job> scripts are executed in subdirectories).
@@ -1289,6 +1298,9 @@ class AWSEC2Server(_common.Server):
         * `files` (list, optional, default=[]): list of paths to additional files
             to copy to the server required in order to successfully execute
             `script`.
+        * `conda_environment` (string or None): name of the conda environment to
+            run the script, or None to use the 'default' environment stored in
+            the server crimpl directory.
         * `trial_run` (bool, optional, default=False): if True, the commands
             that would be sent to the server are returned but not executed
             (and the server is not started automatically - so these may include
@@ -1307,7 +1319,7 @@ class AWSEC2Server(_common.Server):
         if self.state != 'running' and not trial_run:
             self.start()  # wait is always True
 
-        cmds = self._submit_script_cmds(script, files)
+        cmds = self._submit_script_cmds(script, files, conda_environment=conda_environment)
         if trial_run:
             return cmds
 
