@@ -98,7 +98,7 @@ class Server(object):
             return False
         return True
 
-    def _get_conda_environments_dict(self):
+    def _get_conda_environments_dict(self, job_name=None):
         """
 
         Returns
@@ -108,11 +108,18 @@ class Server(object):
         out = self._run_ssh_cmd("conda info --envs")
         crimpl_env_dir = _os.path.join(self.directory, "crimpl-envs").replace("~", "")
 
-        # force local to override global
+        # force crimpl environments to override global
         d = {line.split()[0].split("/")[-1]: line.split()[-1] for line in out.split("\n")[3:] if len(line.split()) > 1}
         for line in out.split("\n")[3:]:
             if len(line.split()) == 1 and crimpl_env_dir in line:
                 d[line.strip().split("/")[-1]] = line.strip()
+
+        # force job clones environments to override crimpl/global
+        if job_name is not None:
+            for line in out.split("\n")[3:]:
+                if len(line.split()) == 1 and "crimpl-job-{}".format(job_name) in line:
+                    d[line.strip().split("/")[-1]] = line.strip()
+
         return d
 
     @property
@@ -131,7 +138,11 @@ class Server(object):
         """
         return list(self._get_conda_environments_dict().keys())
 
-    def _create_conda_environment(self, conda_environment, check_if_exists=True, run_cmd=True):
+    def _create_conda_environment(self, conda_environment,
+                                  isolate_environment=False,
+                                  job_name=None,
+                                  check_if_exists=True,
+                                  run_cmd=True):
         """
         """
         if not (isinstance(conda_environment, str) or conda_environment is None):
@@ -143,15 +154,33 @@ class Server(object):
         if conda_environment is None:
             conda_environment = 'default'
 
-        if check_if_exists:
-            conda_envs_dict = self._get_conda_environments_dict()
-            if conda_environment in conda_envs_dict.keys():
-                return None, conda_envs_dict.get(conda_environment)
-
-        envpath = _os.path.join(self.directory, "crimpl-envs", conda_environment)
         python_version = _sys.version.split()[0]
+        if isolate_environment and job_name is not None:
+            # need to check to see if the server environment needs to be created and/or cloned
+            conda_envs_dict = self._get_conda_environments_dict(job_name=job_name)
 
-        cmd = "conda create -p {envpath} -y pip numpy python={python_version}".format(envpath=envpath, python_version=python_version)
+            cmd = ""
+            envpath_server = _os.path.join(self.directory, "crimpl-envs", conda_environment)
+            envpath = _os.path.join(self.directory, "crimpl-job-{}".format(job_name), "crimpl-envs", conda_environment)
+
+            if conda_environment not in conda_envs_dict.keys():
+                # create the environment at the server level
+                cmd += "conda create -p {envpath_server} -y pip numpy python={python_version}; ".format(envpath_server=envpath_server, python_version=python_version)
+            if len(cmd) or job_name not in conda_envs_dict.get(conda_environment):
+                # clone the server environment at the job level
+                cmd += "conda create -p {envpath} -y --clone {envpath_server};".format(envpath=envpath, envpath_server=envpath_server)
+
+        else:
+            if check_if_exists:
+                conda_envs_dict = self._get_conda_environments_dict(job_name=job_name)
+                if conda_environment in conda_envs_dict.keys():
+                    return None, conda_envs_dict.get(conda_environment)
+            else:
+                conda_envs_dict = False
+
+            # create the environment at the server level
+            envpath = _os.path.join(self.directory, "crimpl-envs", conda_environment)
+            cmd = "conda create -p {envpath} -y pip numpy python={python_version}".format(envpath=envpath, python_version=python_version)
 
         if run_cmd:
             return self._run_ssh_cmd(cmd), envpath
@@ -190,12 +219,13 @@ class Server(object):
 
         return self.conda_installed
 
-    def create_job(self, job_name=None, conda_environment=None):
+    def create_job(self, job_name=None, conda_environment=None, isolate_environment=False):
         """
         """
         return self._JobClass(server=self,
                               job_name=job_name,
                               conda_environment=conda_environment,
+                              isolate_environment=isolate_environment,
                               connect_to_existing=False)
 
     def get_job(self, job_name=None):
@@ -204,13 +234,24 @@ class Server(object):
         return self._JobClass(server=self, job_name=job_name, connect_to_existing=True)
 
 class ServerJob(object):
-    def __init__(self, server, job_name=None, conda_environment=None, job_submitted=False):
+    def __init__(self, server, job_name=None,
+                 conda_environment=None, isolate_environment=False,
+                 job_submitted=False):
         self._server = server
 
         self._job_name = job_name
         self._job_submitted = job_submitted
 
-        self.conda_environment = conda_environment
+
+        if not (isinstance(conda_environment, str) or conda_environment is None):
+            raise TypeError("conda_environment must be a string or None")
+        if isinstance(conda_environment, str) and "/" in conda_environment:
+            raise ValueError("conda_environment should be alpha-numeric (and -/_) only")
+        self._conda_environment = conda_environment
+
+        if not isinstance(isolate_environment, bool):
+            raise TypeError("isolate_environment must be of type bool")
+        self._isolate_environment = isolate_environment
 
         # allow caching once the environment exists
         self._conda_environment_exists = False
@@ -254,29 +295,11 @@ class ServerJob(object):
 
         return self._conda_environment
 
-    @conda_environment.setter
-    def conda_environment(self, conda_environment):
+    @property
+    def isolate_environment(self):
         """
-        Set the conda environment to use for any future calls to <<class>.run_script>
-        or <<class>.submit_script>.
-
-        Arguments
-        ------------
-        * `conda_environment` (string or None): name of the conda environment, or
-            None to use the 'default' environment stored in the server crimpl directory.
         """
-        # TODO: only allow changing before submission
-
-        # make sure a valid string
-
-
-        if not (isinstance(conda_environment, str) or conda_environment is None):
-            raise TypeError("conda_environment must be a string or None")
-
-        if isinstance(conda_environment, str) and "/" in conda_environment:
-            raise ValueError("conda_environment should be alpha-numeric (and -/_) only")
-
-        self._conda_environment = conda_environment
+        return self._isolate_environment
 
     @property
     def conda_environment_exists(self):

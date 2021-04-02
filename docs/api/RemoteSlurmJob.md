@@ -6,6 +6,7 @@
 * [conda_environment_exists](RemoteSlurmJob.conda_environment_exists.md)
 * [create_conda_environment](RemoteSlurmJob.create_conda_environment.md)
 * [input_files](RemoteSlurmJob.input_files.md)
+* [isolate_environment](RemoteSlurmJob.isolate_environment.md)
 * [job_files](RemoteSlurmJob.job_files.md)
 * [job_name](RemoteSlurmJob.job_name.md)
 * [job_status](RemoteSlurmJob.job_status.md)
