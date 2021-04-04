@@ -185,6 +185,7 @@ class AWSEC2Job(_common.ServerJob):
                 job_matches_all = [j for j in self.existing_jobs if j==job_name or job_name is None]
                 if len(job_matches_all) == 1:
                     instanceId = None
+                    job_name = job_name
                 else:
                     raise ValueError("{} total matching jobs found on {} server.  Please provide job_name or create a new job".format(len(job_matches_all), server.server_name))
         else:
@@ -531,12 +532,13 @@ class AWSEC2Job(_common.ServerJob):
 
         mkdir_cmd = self.server.ssh_cmd.format("mkdir -p {}".format(self.remote_directory))
         logfiles_cmd = self.server.ssh_cmd.format("echo \'{}\' >> {}".format(" ".join([_os.path.basename(f) for f in files]), _os.path.join(self.remote_directory, "crimpl-input-files.list")))
+        logenv_cmd = self.server.ssh_cmd.format("echo \'{}\' > {}".format(self.conda_environment, _os.path.join(self.remote_directory, "crimpl-conda-environment")))
 
         scp_cmd = self.server.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.remote_directory)
 
         cmd = self.server.ssh_cmd.format("cd {remote_directory}; chmod +x {script_name}; {screen} sh {script_name}".format(remote_directory=self.remote_directory, script_name="crimpl_script.sh", screen="screen -m -d " if use_screen else ""))
 
-        return [mkdir_cmd, scp_cmd, create_env_cmd, logfiles_cmd, cmd]
+        return [mkdir_cmd, scp_cmd, create_env_cmd, logfiles_cmd, logenv_cmd, cmd]
 
     def run_script(self, script, files=[], trial_run=False):
         """

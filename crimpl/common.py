@@ -291,7 +291,18 @@ class ServerJob(object):
         * (str): name or path of the conda environment on the remote server.
         """
         if self._conda_environment is None:
-            return 'default'
+            # determine if already stored in the remote directory
+            try:
+                response = self.server._run_ssh_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl-conda-environment")))
+            except _subprocess.CalledProcessError as e:
+                if 'No such file or directory' in str(e):
+                    # then the cached file does not yet exist, so we'll default to 'default'
+                    self._conda_environment = 'default'
+                else:
+                    # leave self._conda_environment at None
+                    pass
+            else:
+                self._conda_environment = response.strip()
 
         return self._conda_environment
 
@@ -374,7 +385,7 @@ class ServerJob(object):
         ----------
         * (list)
         """
-        response = self._run_ssh_cmd("ls {}/*".format(self.remote_directory))
+        response = self.server._run_ssh_cmd("ls {}/*".format(self.remote_directory))
         return [_os.path.basename(f) for f in response.split()]
 
     @property
@@ -415,7 +426,7 @@ class ServerJob(object):
         """
         if self._input_files is None:
 
-            response = self._run_ssh_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl-input-files.list")))
+            response = self.server._run_ssh_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl-input-files.list")))
             self._input_files = response.split()
 
         return self._input_files

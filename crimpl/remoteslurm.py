@@ -250,6 +250,7 @@ class RemoteSlurmJob(_common.ServerJob):
 
         mkdir_cmd = self.server.ssh_cmd.format("mkdir -p {}".format(self.remote_directory))
         logfiles_cmd = self.server.ssh_cmd.format("echo \'{}\' >> {}".format(" ".join([_os.path.basename(f) for f in files]), _os.path.join(self.remote_directory, "crimpl-input-files.list"))) if len(files) else None
+        logenv_cmd = self.server.ssh_cmd.format("echo \'{}\' > {}".format(self.conda_environment, _os.path.join(self.remote_directory, "crimpl-conda-environment")))
 
         # TODO: use job subdirectory for server_path
         scp_cmd = self.server.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.remote_directory+"/")
@@ -263,7 +264,7 @@ class RemoteSlurmJob(_common.ServerJob):
             cmd = self.server.ssh_cmd.format("cd {remote_directory}; chmod +x {remote_script}; sh {remote_script}".format(remote_directory=self.remote_directory,
                                                                                                                           remote_script=remote_script))
 
-        return [mkdir_cmd, scp_cmd, logfiles_cmd, create_env_cmd, cmd]
+        return [mkdir_cmd, scp_cmd, logfiles_cmd, logenv_cmd, create_env_cmd, cmd]
 
     def run_script(self, script, files=[], trial_run=False):
         """
