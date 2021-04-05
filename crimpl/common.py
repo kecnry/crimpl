@@ -330,6 +330,16 @@ class Server(object):
         """
         return self._JobClass(server=self, job_name=job_name, connect_to_existing=True)
 
+    def submit_job(self, job_name=None, conda_environment=None, isolate_environment=False,
+                   **submit_script_kwargs):
+        """
+        Shortcut to <<class>.create_job> followed by the relevant `submit_script`
+
+
+        """
+        sj = self.create_job(job_name=job_name, conda_environment=conda_environment, isolate_environment=isolate_environment)
+        return sj.submit_script(**submit_script_kwargs)
+
 class ServerJob(object):
     def __init__(self, server, job_name=None,
                  conda_environment=None, isolate_environment=False,
@@ -583,7 +593,7 @@ class ServerJob(object):
                 raise ValueError("job_status={}".format(job_status))
             _sleep(sleeptime)
 
-        return status
+        return job_status
 
     def check_output(self, server_path=None, local_path="./"):
         """
