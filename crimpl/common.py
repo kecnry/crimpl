@@ -219,6 +219,103 @@ class Server(object):
 
         return self.conda_installed
 
+    def _submit_script_cmds(self, script, files,
+                            use_slurm,
+                            directory,
+                            conda_environment, isolate_environment,
+                            job_name,
+                            terminate_on_complete=False,
+                            use_screen=False,
+                            **slurm_kwargs):
+        # from job: self.server._submit_script_cmds(script, files, use_slurm, directory=self.remote_directory, conda_environment=self.conda_environment, isolate_environment=self.isolate_environment, job_name=self.job_name)
+        # from server: self._submit_script_cmds(script, files, use_slurm=False, directory=self.directory, conda_environment=conda_environment, isolate_environment=False, job_name=None)
+
+        if isinstance(script, str):
+            # TODO: allow for http?
+            if not _os.path.isfile(script):
+                raise ValueError("cannot find valid script at {}.  To pass commands directly, pass a list of strings".format(script))
+
+            f = open(script, 'r')
+            script = script.readlines()
+
+        if not isinstance(script, list):
+            raise TypeError("script must be of type string (path) or list (list of commands)")
+
+        # for i, line in enumerate(script):
+        #     # ensure that all calls to conda install without prompts?
+        #     if "conda" in line and "-y" not in line:
+        #         script[i] = script[i] + " -y"
+
+        _slurm_kwarg_to_prefix = {'job_name': '-J ',
+                                  'nprocs': '-n ',
+                                  'walltime': '-t ',
+                                  'mail_type': '--mail-type=',
+                                  'mail_user': '--mail-user='}
+
+        create_env_cmd, conda_env_path = self._create_conda_environment(conda_environment, isolate_environment, job_name=job_name, check_if_exists=True, run_cmd=False)
+
+        if use_slurm and job_name is None:
+            raise ValueError("use_slurm requires job_name")
+        if use_slurm and use_screen:
+            raise ValueError("cannot use both use_slurm and use_screen")
+
+        if job_name is not None:
+            if use_slurm:
+                slurm_script = ["#!/bin/bash"]
+                # TODO: use job subdirectory
+                slurm_script += ["#SBATCH -D {}".format(directory+"/")]
+                for k,v in slurm_kwargs.items():
+                    prefix = _slurm_kwarg_to_prefix.get(k, False)
+                    if prefix is False:
+                        raise NotImplementedError("slurm command for {} not implemented".format(k))
+                    slurm_script += ["#SBATCH {}{}".format(prefix, v)]
+
+                script = slurm_script + ["\n\n", "eval \"$(conda shell.bash hook)\"", "conda activate {}".format(conda_env_path)] + ["echo \'running\' > crimpl-job.status"] + script + ["echo \'complete\' > crimpl-job.status"]
+            else:
+                # need to track status by writing to log file
+                if "#!" in script[0]:
+                    script = [script[0]] + ["echo \'running\' > crimpl-job.status"] + script[1:] + ["echo \'complete\' > crimpl-job.status"]
+                else:
+                    script = ["echo \'running\' > crimpl-job.status"] + script + ["echo \'complete\' > crimpl-job.status"]
+
+
+        # TODO: use tmp file instead
+        f = open('crimpl_script.sh', 'w')
+        if not use_slurm:
+            f.write("eval \"$(conda shell.bash hook)\"\nconda activate {}\n".format(conda_env_path))
+        f.write("\n".join(script))
+        if terminate_on_complete:
+            # should really only be used for AWS
+            f.write("\nsudo shutdown now")
+        f.close()
+
+        if not isinstance(files, list):
+            raise TypeError("files must be of type list")
+        for f in files:
+            if not _os.path.isfile(f):
+                raise ValueError("cannot find file at {}".format(f))
+
+        mkdir_cmd = self.ssh_cmd.format("mkdir -p {}".format(directory))
+        if job_name is not None:
+            logfiles_cmd = self.ssh_cmd.format("echo \'{}\' >> {}".format(" ".join([_os.path.basename(f) for f in files]), _os.path.join(directory, "crimpl-input-files.list"))) if len(files) else None
+            logenv_cmd = self.ssh_cmd.format("echo \'{}\' > {}".format(conda_environment, _os.path.join(directory, "crimpl-conda-environment")))
+
+        # TODO: use job subdirectory for server_path
+        scp_cmd = self.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=directory+"/")
+
+        if use_slurm:
+            remote_script = _os.path.join(directory, _os.path.basename("crimpl_script.sh"))
+            cmd = self.ssh_cmd.format("sbatch {remote_script}".format(remote_script=remote_script))
+        else:
+            remote_script = "crimpl_script.sh"
+            cmd = self.ssh_cmd.format("cd {directory}; chmod +x {remote_script}; {screen} sh {remote_script}".format(directory=directory,
+                                                                                                                     remote_script=remote_script,
+                                                                                                                     screen="screen -m -d " if use_screen else ""))
+        if job_name is not None:
+            return [mkdir_cmd, scp_cmd, logfiles_cmd, logenv_cmd, create_env_cmd, cmd]
+        else:
+            return [mkdir_cmd, scp_cmd, create_env_cmd, cmd]
+
     def create_job(self, job_name=None, conda_environment=None, isolate_environment=False):
         """
         """

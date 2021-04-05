@@ -496,50 +496,6 @@ class AWSEC2Job(_common.ServerJob):
 
             return response
 
-
-    def _submit_script_cmds(self, script, files, terminate_on_complete, use_screen):
-        if isinstance(script, str):
-            # TODO: allow for http?
-            if not _os.path.isfile(script):
-                raise ValueError("cannot find valid script at {}".format(script))
-
-            f = open(script, 'r')
-            script = script.readlines()
-
-        if not isinstance(script, list):
-            raise TypeError("script must be of type string (path) or list (list of commands)")
-
-        if "#!" in script[0]:
-            script = [script[0]] + ["echo \'running\' > crimpl-job.status"] + script[1:] + ["echo \'complete\' > crimpl-job.status"]
-        else:
-            script = ["echo \'running\' > crimpl-job.status"] + script + ["echo \'complete\' > crimpl-job.status"]
-
-        create_env_cmd, conda_env_path = self._create_conda_environment(self.conda_environment, self.isolate_environment, job_name=self.job_name, check_if_exists=True, run_cmd=False)
-
-        # TODO: use tmp file instead
-        f = open('crimpl_script.sh', 'w')
-        f.write("eval \"$(conda shell.bash hook)\"\nconda activate {}\n".format(conda_env_path))
-        f.write("\n".join(script))
-        if terminate_on_complete:
-            f.write("\nsudo shutdown now")
-        f.close()
-
-        if not isinstance(files, list):
-            raise TypeError("files must be of type list")
-        for f in files:
-            if not _os.path.isfile(f):
-                raise ValueError("cannot find file at {}".format(f))
-
-        mkdir_cmd = self.server.ssh_cmd.format("mkdir -p {}".format(self.remote_directory))
-        logfiles_cmd = self.server.ssh_cmd.format("echo \'{}\' >> {}".format(" ".join([_os.path.basename(f) for f in files]), _os.path.join(self.remote_directory, "crimpl-input-files.list")))
-        logenv_cmd = self.server.ssh_cmd.format("echo \'{}\' > {}".format(self.conda_environment, _os.path.join(self.remote_directory, "crimpl-conda-environment")))
-
-        scp_cmd = self.server.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.remote_directory)
-
-        cmd = self.server.ssh_cmd.format("cd {remote_directory}; chmod +x {script_name}; {screen} sh {script_name}".format(remote_directory=self.remote_directory, script_name="crimpl_script.sh", screen="screen -m -d " if use_screen else ""))
-
-        return [mkdir_cmd, scp_cmd, create_env_cmd, logfiles_cmd, logenv_cmd, cmd]
-
     def run_script(self, script, files=[], trial_run=False):
         """
         Run a script on the **job** server in the <<class>.conda_environment>,
@@ -580,7 +536,14 @@ class AWSEC2Job(_common.ServerJob):
         if self.state != 'running' and not trial_run:
             self.start()  # wait is always True
 
-        cmds = self._submit_script_cmds(script, files, terminate_on_complete=False, use_screen=False)
+        cmds = self.server._submit_script_cmds(script, files,
+                                               use_slurm=False,
+                                               directory=self.remote_directory,
+                                               conda_environment=self.conda_environment,
+                                               isolate_environment=self.isolate_environment,
+                                               job_name=None,
+                                               terminate_on_complete=False, use_screen=False)
+
         if trial_run:
             return cmds
 
@@ -644,7 +607,15 @@ class AWSEC2Job(_common.ServerJob):
         if self.state != 'running' and not trial_run:
             self.start() # wait is always True
 
-        cmds = self._submit_script_cmds(script, files, terminate_on_complete=terminate_on_complete, use_screen=True)
+        cmds = self.server._submit_script_cmds(script, files,
+                                               use_slurm=False,
+                                               directory=self.remote_directory,
+                                               conda_environment=self.conda_environment,
+                                               isolate_environment=self.isolate_environment,
+                                               job_name=job_name if job_name is not None else self.job_name,
+                                               terminate_on_complete=terminate_on_complete,
+                                               use_screen=True)
+
         if trial_run:
             return cmds
 
@@ -1259,41 +1230,6 @@ class AWSEC2Server(_common.Server):
 
         return self.state
 
-    def _submit_script_cmds(self, script, files, conda_environment=None):
-        if isinstance(script, str):
-            # TODO: allow for http?
-            if not _os.path.isfile(script):
-                raise ValueError("cannot find valid script at {}".format(script))
-
-            f = open(script, 'r')
-            script = script.readlines()
-
-        if not isinstance(script, list):
-            raise TypeError("script must be of type string (path) or list (list of commands)")
-
-        create_env_cmd, conda_env_path = self._create_conda_environment(conda_environment, isolate_environment=False, check_if_exists=True, run_cmd=False)
-
-        # TODO: use tmp file instead
-        f = open('crimpl_script.sh', 'w')
-        f.write("eval \"$(conda shell.bash hook)\"\nconda activate {}\n".format(conda_env_path))
-        f.write("\n".join(script))
-        f.close()
-
-        if not isinstance(files, list):
-            raise TypeError("files must be of type list")
-        for f in files:
-            if not _os.path.isfile(f):
-                raise ValueError("cannot find file at {}".format(f))
-
-        mkdir_cmd = self.ssh_cmd.format("mkdir -p {}".format(self.directory))
-        logfiles_cmd = self.server.ssh_cmd.format("echo \'{}\' >> {}".format(" ".join([_os.path.basename(f) for f in files]), _os.path.join(self.remote_directory, "crimpl-input-files.list")))
-
-        scp_cmd = self.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.directory)
-
-        cmd = self.ssh_cmd.format("cd {remote_directory}; chmod +x {script_name}; sh {script_name}".format(remote_directory=self.directory, script_name="crimpl_script.sh"))
-
-        return [mkdir_cmd, scp_cmd, logfiles_cmd, cmd]
-
     def run_script(self, script, files=[], conda_environment=None, trial_run=False):
         """
         Run a script on the **server** EC2 instance (single processor) in the
@@ -1340,7 +1276,14 @@ class AWSEC2Server(_common.Server):
         if self.state != 'running' and not trial_run:
             self.start()  # wait is always True
 
-        cmds = self._submit_script_cmds(script, files, conda_environment=conda_environment)
+        cmds = self._submit_script_cmds(script, files,
+                                        use_slurm=False,
+                                        directory=self.directory,
+                                        conda_environment=conda_environment,
+                                        isolate_environment=False,
+                                        job_name=None,
+                                        terminate_on_complete=False, use_screen=False)
+
         if trial_run:
             return cmds
 
