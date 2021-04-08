@@ -192,7 +192,7 @@ class AWSEC2Job(_common.ServerJob):
             instanceId = None
             if job_name is None:
                 job_name = _common._new_job_name()
-            elif len(job_matches):
+            elif len(job_matches_running):
                 raise ValueError("job_name={} already exists on {} server".format(job_name, server.server_name))
 
             # technically we should check this, but that requires launching the instance... can we instead check it before creating the directory?
@@ -612,7 +612,7 @@ class AWSEC2Job(_common.ServerJob):
                                                directory=self.remote_directory,
                                                conda_environment=self.conda_environment,
                                                isolate_environment=self.isolate_environment,
-                                               job_name=job_name if job_name is not None else self.job_name,
+                                               job_name=self.job_name,
                                                terminate_on_complete=terminate_on_complete,
                                                use_screen=True)
 
@@ -711,7 +711,7 @@ class AWSEC2Server(_common.Server):
             server_name = server_match[0]['crimpl.server_name']
             volumeId = server_match[0]['volumeId']
         else:
-            raise ValueError("{} existing EC2 volumes matched with server_name={} and volumeId={}.  Use new instead of __init__ to generate a new server.".format(server_name, volume_id))
+            raise ValueError("{} existing EC2 volumes matched with server_name={} and volumeId={}.  Use new instead of __init__ to generate a new server.".format(len(server_match), server_name, volumeId))
 
         self._server_name = server_name
         self._volumeId = volumeId
