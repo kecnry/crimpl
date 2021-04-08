@@ -405,6 +405,7 @@ class ServerJob(object):
                 if 'No such file or directory' in str(e):
                     # then the cached file does not yet exist, so we'll default to 'default'
                     self._conda_environment = 'default'
+                    print("# crimpl: will use conda_environment=\"default\"")
                 else:
                     # leave self._conda_environment at None
                     pass
@@ -587,6 +588,7 @@ class ServerJob(object):
 
         while True:
             job_status = self.job_status
+            print("# crimpl: job_status={}".format(job_status))
             if job_status in status:
                 break
             if job_status in error_if:

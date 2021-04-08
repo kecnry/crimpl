@@ -377,24 +377,24 @@ class AWSEC2Job(_common.ServerJob):
         else:
             response = _ec2_client.start_instances(InstanceIds=[self.instanceId], DryRun=False)
 
-        print("waiting for job EC2 instance to start...")
+        print("# crimpl: waiting for job EC2 instance to start...")
         self._instance.wait_until_running()
 
         # attach the volume
-        print("attaching server volume {} to job EC2 instance...".format(self.server.volumeId))
+        print("# crimpl: attaching server volume {} to job EC2 instance...".format(self.server.volumeId))
         try:
             response = _ec2_client.attach_volume(Device='/dev/sdh',
                                                  InstanceId=self.instanceId,
                                                  VolumeId=self.server.volumeId)
         except Exception as e:
-            print("attaching server volume failed, stopping EC2 instance...")
+            print("# crimpl: attaching server volume failed, stopping EC2 instance...")
             self.stop()
             raise e
 
-        print("waiting 30s for initialization checks to complete...")
+        print("# crimpl: waiting 30s for initialization checks to complete...")
         _sleep(30)
 
-        print("mounting server volume on job EC2 instance...")
+        print("# crimpl: mounting server volume on job EC2 instance...")
         cmd = self.server.ssh_cmd.format("sudo mkdir crimpl_server; {mkfs_cmd}sudo mount /dev/xvdh crimpl_server; sudo chown {username} crimpl_server; sudo chgrp {username} crimpl_server".format(username=self.username, mkfs_cmd="sudo mkfs -t xfs /dev/xvdh; " if self.server._volume_needs_format else ""))
 
         _common._run_cmd(cmd)
@@ -422,7 +422,7 @@ class AWSEC2Job(_common.ServerJob):
         """
         response = _ec2_client.stop_instances(InstanceIds=[self.instanceId], DryRun=False)
         if wait:
-            print("waiting for job EC2 instance to stop...")
+            print("# crimpl: waiting for job EC2 instance to stop...")
             self._instance.wait_until_stopped()
         return self.state
 
@@ -444,7 +444,7 @@ class AWSEC2Job(_common.ServerJob):
         """
         response = _ec2_client.terminate_instances(InstanceIds=[self.instanceId], DryRun=False)
         if wait:
-            print("waiting for job EC2 instance to terminate...")
+            print("# crimpl: waiting for job EC2 instance to terminate...")
             self._instance.wait_until_terminated()
         return self.state
 
@@ -880,10 +880,10 @@ class AWSEC2Server(_common.Server):
             matching_ec2s = [d for d in list_awsec2_instances().values() if d['crimpl.server_name'] == self.server_name]
             matching_instances = [d['instanceId'] for d in matching_ec2s]
             if len(matching_instances):
-                print("terminating ec2 instances {}...".format(matching_instances))
+                print("# crimpl: terminating ec2 instances {}...".format(matching_instances))
                 _ec2_client.terminate_instances(InstanceIds=matching_instances)
 
-                print("waiting for ec2 instances to terminate...")
+                print("# crimpl: waiting for ec2 instances to terminate...")
                 for instanceId in matching_instances:
                     while _ec2_resource.Instance(instanceId).state['Name'] != 'terminated':
                         _sleep(0.5)
@@ -893,7 +893,7 @@ class AWSEC2Server(_common.Server):
             raise ValueError("server must be terminated before deleting volume")
 
         # TODO: other checks?  Make sure NO instance is attached to the volume and raise helpful errors
-        print("deleting volume {}...".format(self.volumeId))
+        print("# crimpl: deleting volume {}...".format(self.volumeId))
         self._volume.delete()
         self._volumeId = None
 
@@ -1147,11 +1147,11 @@ class AWSEC2Server(_common.Server):
 
         self._username = "ubuntu" # assumed - provide option for this?
 
-        print("waiting for server EC2 instance to start before attaching server volume...")
+        print("# crimpl: waiting for server EC2 instance to start before attaching server volume...")
         self._instance.wait_until_running()
 
         # attach the volume
-        print("attaching server volume {}...".format(self.volumeId))
+        print("# crimpl: attaching server volume {}...".format(self.volumeId))
 
 
         # TODO: test if already attached anywhere else (possibly an instance stopped via sudo shutdown) and detach.
@@ -1162,14 +1162,14 @@ class AWSEC2Server(_common.Server):
                                                  InstanceId=self.instanceId,
                                                  VolumeId=self.volumeId)
         except Exception as e:
-            print("attaching server volume failed, stopping EC2 instance...")
+            print("# crimpl: attaching server volume failed, stopping EC2 instance...")
             self.stop()
             raise e
 
-        print("waiting 30s for initialization checks to complete...")
+        print("# crimpl: waiting 30s for initialization checks to complete...")
         _sleep(30)
 
-        print("mounting volume on server EC2 instance...")
+        print("# crimpl: mounting volume on server EC2 instance...")
         cmd = self.ssh_cmd.format("sudo mkdir crimpl_server; {mkfs_cmd}sudo mount /dev/xvdh crimpl_server; sudo chown {username} crimpl_server; sudo chgrp {username} crimpl_server".format(username=self.username, mkfs_cmd="sudo mkfs -t xfs /dev/xvdh; " if self._volume_needs_format else ""))
         _common._run_cmd(cmd)
         self._volume_needs_format = False
@@ -1197,7 +1197,7 @@ class AWSEC2Server(_common.Server):
         """
         response = _ec2_client.stop_instances(InstanceIds=[self.instanceId], DryRun=False)
         if wait:
-            print("waiting for server EC2 instance to stop...")
+            print("# crimpl: waiting for server EC2 instance to stop...")
             self._instance.wait_until_stopped()
         return self.state
 
@@ -1219,7 +1219,7 @@ class AWSEC2Server(_common.Server):
         """
         response = _ec2_client.terminate_instances(InstanceIds=[self.instanceId], DryRun=False)
         if wait or delete_volume:
-            print("waiting for server EC2 instance to terminate...")
+            print("# crimpl: waiting for server EC2 instance to terminate...")
             self._instance.wait_until_terminated()
 
         self._instanceId = None
