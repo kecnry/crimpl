@@ -987,7 +987,7 @@ class AWSEC2Server(_common.Server):
         except:
             ip = "{ip}"
 
-        return "ssh -i {} {}@{}".format(self._KeyFile, self.username, ip)
+        return "ssh -o \"StrictHostKeyChecking no\" -i {} {}@{}".format(self._KeyFile, self.username, ip)
 
     @property
     def scp_cmd_to(self):
