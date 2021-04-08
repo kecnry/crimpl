@@ -398,7 +398,18 @@ class AWSEC2Job(_common.ServerJob):
         print("# crimpl: mounting server volume on job EC2 instance...")
         cmd = self.server.ssh_cmd.format("sudo mkdir crimpl_server; {mkfs_cmd}sudo mount /dev/xvdh crimpl_server; sudo chown {username} crimpl_server; sudo chgrp {username} crimpl_server".format(username=self.username, mkfs_cmd="sudo mkfs -t xfs /dev/xvdh; " if self.server._volume_needs_format else ""))
 
-        _common._run_cmd(cmd)
+        while True:
+            try:
+                _common._run_cmd(cmd)
+            except _subprocess.CalledProcessError:
+                print("# crimpl: ssh call to mount server failed, waiting another 10s and trying again")
+                _sleep(10)
+            else:
+                break
+
+        print("# crimpl: initializing conda on job EC2 instance...")
+        _common._run_cmd("conda init")
+
         self.server._volume_needs_format = False
 
         return self.state
