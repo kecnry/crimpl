@@ -367,7 +367,8 @@ class AWSEC2Job(_common.ServerJob):
 
         server_state = self.server.state
         if server_state not in ['not-started', 'terminated']:
-            raise ValueError("cannot start job EC2 instance while server state is {}.".format(server_state))
+            print("# crimpl: terminating server EC2 instance before starting job EC2 instance...")
+            self.server.terminate(wait=True)
 
         if self.instanceId is None:
             ec2_init_kwargs = self._ec2_init_kwargs.copy()
