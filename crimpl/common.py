@@ -184,6 +184,13 @@ class Server(object):
                                   run_cmd=True):
         """
         """
+        default_deps = "pip numpy"
+        if self.__class__.__name__ == 'AWSEC2Server':
+            # NOTE: AWS needs mpi4py via CONDA not PIP, so we'll include it by default
+            # other servers/user may prefer the pip installation
+            default_deps = "gcc_linux-64 gxx_linux-64 "+default_deps+" mpi4py"
+
+
         if not (isinstance(conda_environment, str) or conda_environment is None):
             raise TypeError("conda_environment must be a string or None")
 
@@ -204,7 +211,8 @@ class Server(object):
 
             if conda_environment not in conda_envs_dict.keys():
                 # create the environment at the server level
-                cmd += "conda create -p {envpath_server} -y pip numpy mpi4py gcc_linux-64 gxx_linux-64 python={python_version}; ".format(envpath_server=envpath_server, python_version=python_version)
+                # mpi4py gcc_linux-64 gxx_linux-64
+                cmd += "conda create -p {envpath_server} -y {default_deps} python={python_version}; ".format(envpath_server=envpath_server, default_deps=default_deps, python_version=python_version)
             if len(cmd) or job_name not in conda_envs_dict.get(conda_environment):
                 # clone the server environment at the job level
                 cmd += "conda create -p {envpath} -y --clone {envpath_server};".format(envpath=envpath, envpath_server=envpath_server)
@@ -219,7 +227,8 @@ class Server(object):
 
             # create the environment at the server level
             envpath = _os.path.join(self.directory, "crimpl-envs", conda_environment)
-            cmd = "conda create -p {envpath} -y pip numpy mpi4py gcc_linux-64 gxx_linux-64 python={python_version}".format(envpath=envpath, python_version=python_version)
+            # mpi4py gcc_linux-64 gxx_linux-64
+            cmd = "conda create -p {envpath} -y {default_deps} python={python_version}".format(envpath=envpath, default_deps=default_deps, python_version=python_version)
 
         if run_cmd:
             return self._run_ssh_cmd(cmd), envpath
@@ -518,8 +527,8 @@ class ServerJob(object):
 
         This environment will be available to any jobs in this server and will
         be listed in <<Server>.conda_environments>.  The created environment will
-        use the same version of python as the local version and include pip,
-        numpy, and mpi4py, by default.
+        use the same version of python as the local version and include pip
+        and numpy by default.
 
         """
         if self.conda_environment_exists:
