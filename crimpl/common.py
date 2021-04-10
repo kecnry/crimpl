@@ -188,7 +188,7 @@ class Server(object):
         if self.__class__.__name__ == 'AWSEC2Server':
             # NOTE: AWS needs mpi4py via CONDA not PIP, so we'll include it by default
             # other servers/user may prefer the pip installation
-            default_deps = "gcc_linux-64 gxx_linux-64 "+default_deps+" mpi4py"
+            default_deps = "gcc_linux-64 gxx_linux-64 openmpi mpi4py "+default_deps
 
 
         if not (isinstance(conda_environment, str) or conda_environment is None):
@@ -211,7 +211,6 @@ class Server(object):
 
             if conda_environment not in conda_envs_dict.keys():
                 # create the environment at the server level
-                # mpi4py gcc_linux-64 gxx_linux-64
                 cmd += "conda create -p {envpath_server} -y {default_deps} python={python_version}; ".format(envpath_server=envpath_server, default_deps=default_deps, python_version=python_version)
             if len(cmd) or job_name not in conda_envs_dict.get(conda_environment):
                 # clone the server environment at the job level
@@ -227,7 +226,6 @@ class Server(object):
 
             # create the environment at the server level
             envpath = _os.path.join(self.directory, "crimpl-envs", conda_environment)
-            # mpi4py gcc_linux-64 gxx_linux-64
             cmd = "conda create -p {envpath} -y {default_deps} python={python_version}".format(envpath=envpath, default_deps=default_deps, python_version=python_version)
 
         if run_cmd:
