@@ -554,7 +554,7 @@ class AWSEC2Job(_common.ServerJob):
                                                conda_environment=self.conda_environment,
                                                isolate_environment=self.isolate_environment,
                                                job_name=None,
-                                               terminate_on_complete=False, use_screen=False)
+                                               terminate_on_complete=False, use_nohup=False)
 
         if trial_run:
             return cmds
@@ -626,7 +626,7 @@ class AWSEC2Job(_common.ServerJob):
                                                isolate_environment=self.isolate_environment,
                                                job_name=self.job_name,
                                                terminate_on_complete=terminate_on_complete,
-                                               use_screen=True)
+                                               use_nohup=True)
 
         if trial_run:
             return cmds
@@ -634,7 +634,8 @@ class AWSEC2Job(_common.ServerJob):
         for cmd in cmds:
             # TODO: get around need to add IP to known hosts (either by
             # expecting and answering yes, or by looking into subnet options)
-            _common._run_cmd(cmd)
+            if cmd is None: continue
+            _common._run_cmd(cmd, detach="nohup" in cmd)
 
         self._job_submitted = True
         self._input_files = None
@@ -1294,7 +1295,7 @@ class AWSEC2Server(_common.Server):
                                         conda_environment=conda_environment,
                                         isolate_environment=False,
                                         job_name=None,
-                                        terminate_on_complete=False, use_screen=False)
+                                        terminate_on_complete=False, use_nohup=False)
 
         if trial_run:
             return cmds
