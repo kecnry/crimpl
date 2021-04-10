@@ -554,7 +554,9 @@ class AWSEC2Job(_common.ServerJob):
                                                conda_environment=self.conda_environment,
                                                isolate_environment=self.isolate_environment,
                                                job_name=None,
-                                               terminate_on_complete=False, use_nohup=False)
+                                               terminate_on_complete=False,
+                                               use_nohup=False,
+                                               install_conda=True)
 
         if trial_run:
             return cmds
@@ -626,7 +628,8 @@ class AWSEC2Job(_common.ServerJob):
                                                isolate_environment=self.isolate_environment,
                                                job_name=self.job_name,
                                                terminate_on_complete=terminate_on_complete,
-                                               use_nohup=True)
+                                               use_nohup=True,
+                                               install_conda=True)
 
         if trial_run:
             return cmds
@@ -1295,7 +1298,9 @@ class AWSEC2Server(_common.Server):
                                         conda_environment=conda_environment,
                                         isolate_environment=False,
                                         job_name=None,
-                                        terminate_on_complete=False, use_nohup=False)
+                                        terminate_on_complete=False,
+                                        use_nohup=False,
+                                        install_conda=True)
 
         if trial_run:
             return cmds

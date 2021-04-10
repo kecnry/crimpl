@@ -247,7 +247,9 @@ class RemoteSlurmJob(_common.ServerJob):
                                                conda_environment=self.conda_environment,
                                                isolate_environment=self.isolate_environment,
                                                job_name=None,
-                                               terminate_on_complete=False, use_nohup=False)
+                                               terminate_on_complete=False,
+                                               use_nohup=False,
+                                               install_conda=False)
         if trial_run:
             return cmds
 
@@ -335,7 +337,9 @@ class RemoteSlurmJob(_common.ServerJob):
                                                conda_environment=self.conda_environment,
                                                isolate_environment=self.isolate_environment,
                                                job_name=job_name if job_name is not None else self.job_name,
-                                               terminate_on_complete=False, use_nohup=False,
+                                               terminate_on_complete=False,
+                                               use_nohup=False,
+                                               install_conda=False,
                                                nprocs=nprocs,
                                                walltime=walltime,
                                                mail_type=mail_type,
@@ -576,7 +580,9 @@ class RemoteSlurmServer(_common.Server):
                                         conda_environment=conda_environment,
                                         isolate_environment=False,
                                         job_name=None,
-                                        terminate_on_complete=False, use_nohup=False)
+                                        terminate_on_complete=False,
+                                        use_nohup=False,
+                                        install_conda=False)
 
         if trial_run:
             return cmds

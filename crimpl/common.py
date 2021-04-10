@@ -248,18 +248,31 @@ class Server(object):
         return True
 
 
-    def install_conda(self):
+    def install_conda(self, in_server_directory=False):
         """
         Install conda on the remote server if it is not already installed.
 
         See also:
 
         * <<class>.conda_installed>
+
+        Arguments
+        -------------
+        * `in_server_directory` (bool, optional, default=False): whether to place
+            the conda installation in <<class>.directory> rather than the default
+            user installation
+
+        Returns
+        ------------
+        * (bool): output of <<class>.conda_installed>
         """
         if self.conda_installed:
             return
 
-        out = self._run_ssh_cmd("cd {directory}; wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh; sh Miniconda3-latest-Linux-x86_64.sh -u -b -p ./crimpl-conda; mkdir ./crimpl-bin; cp ./crimpl-conda/bin/conda ./crimpl-bin/conda".format(directory=self.directory, exportpath=False))
+        if in_server_directory:
+            out = self._run_ssh_cmd("cd {directory}; wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh; sh Miniconda3-latest-Linux-x86_64.sh -u -b -p ./crimpl-conda; mkdir ./crimpl-bin; cp ./crimpl-conda/bin/conda ./crimpl-bin/conda".format(directory=self.directory, exportpath=False))
+        else:
+            out = self._run_ssh_cmd("cd {directory}; wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh; sh Miniconda3-latest-Linux-x86_64.sh -u -b; mkdir ./crimpl-bin; cp ~/miniconda3/bin/conda ./crimpl-bin".format(directory=self.directory, exportpath=False))
         out = self._run_ssh_cmd("conda init")
 
         return self.conda_installed
@@ -271,6 +284,7 @@ class Server(object):
                             job_name,
                             terminate_on_complete=False,
                             use_nohup=False,
+                            install_conda=False,
                             **slurm_kwargs):
         # from job: self.server._submit_script_cmds(script, files, use_slurm, directory=self.remote_directory, conda_environment=self.conda_environment, isolate_environment=self.isolate_environment, job_name=self.job_name)
         # from server: self._submit_script_cmds(script, files, use_slurm=False, directory=self.directory, conda_environment=conda_environment, isolate_environment=False, job_name=None)
@@ -293,7 +307,10 @@ class Server(object):
         #     if "conda" in line and "-y" not in line:
         #         script[i] = script[i] + " -y"
 
-        self.install_conda()
+        if install_conda:
+            self.install_conda(in_server_directory=True)
+        elif not self.conda_installed:
+            raise ValueError("conda is not installed on the remote server.  Install manually or call server.install_conda()")
 
         _slurm_kwarg_to_prefix = {'job_name': '-J ',
                                   'nprocs': '-n ',
