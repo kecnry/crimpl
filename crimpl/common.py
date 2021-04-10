@@ -110,6 +110,8 @@ class Server(object):
         -----------
         * (bool)
         """
+        # need to make sure crimpl_directory exists and exportpath.sh is already copied
+        self._create_crimpl_directory()
         try:
             out = self._run_ssh_cmd("conda -V")
         except _subprocess.CalledProcessError:
@@ -256,8 +258,6 @@ class Server(object):
         """
         if self.conda_installed:
             return
-
-        self._create_crimpl_directory()
 
         out = self._run_ssh_cmd("cd {directory}; wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh; sh Miniconda3-latest-Linux-x86_64.sh -u -b -p ./crimpl-conda; mkdir ./crimpl-bin; cp ./crimpl-conda/bin/conda ./crimpl-bin/conda".format(directory=self.directory, exportpath=False))
         out = self._run_ssh_cmd("conda init")
