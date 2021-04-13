@@ -22,6 +22,7 @@
 * [start](AWSEC2Server.start.md)
 * [state](AWSEC2Server.state.md)
 * [stop](AWSEC2Server.stop.md)
+* [submit_job](AWSEC2Server.submit_job.md)
 * [terminate](AWSEC2Server.terminate.md)
 * [username](AWSEC2Server.username.md)
 * [volumeId](AWSEC2Server.volumeId.md)

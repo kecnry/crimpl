@@ -24,7 +24,7 @@ Read the [latest documentation on readthedocs](https://crimpl.readthedocs.io) or
 
 **crimpl** provides high-level python object-oriented interfaces to manage running scripts within conda environments on remote compute resources.
 
-Each type of server implements a `s.run_script` which runs a given set of commands remotely on the server, showing the output, and waiting for completion, and `s.submit_script` which starts the script running on the server and detaches while allowing for monitoring its progress remotely.  They also each include a `s.check_output` for copying expected output files back to the local machine.
+Each type of server implements a `run_script` which runs a given set of commands remotely on the server, showing the output, and waiting for completion, and `submit_script` which starts the script running on the server and detaches while allowing for monitoring its progress remotely.  They also each include a `s.check_output` for copying expected output files back to the local machine.
 
 
 ## Documentation and API Docs

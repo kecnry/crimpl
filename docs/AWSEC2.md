@@ -32,7 +32,7 @@ s = crimpl.AWSEC2Server.new(server_name='my-aws-server'
 
 ```
 
-This creates an AWS EBS volume in your account at the specified size.  This volume will be persistent until you destroy it and will accrue charges starting as soon as the first EC2 instance of a server or job is started and the volume initialized.  The server object does allow initializing an EC2 instance with 1 server that mounts the volume, which is useful for running virtual environment installation script (note that the OS root volume itself will not be persistent between the server and job EC2 instances) or copying large files.
+This creates an AWS EBS volume in your account at the specified size.  This volume will be persistent until you destroy it and will accrue charges starting as soon as the first EC2 instance of a server or job is started and the volume initialized.  The server object allows initializing an EC2 instance with 1 server that mounts the volume, which is useful for running virtual environment installation script (note that the OS root volume itself will not be persistent between the server and job EC2 instances) or copying large files.
 
 * [AWSEC2Server.start](./api/AWSEC2Server.start.md)
 * [AWSEC2Server.stop](./api/AWSEC2Server.stop.md)
@@ -55,9 +55,25 @@ s = crimpl.AWSEC2Server(server_name='my-aws-server',
 
 If `server_name` was not provided when creating the original instance, the generated name could be accessed with [AWSEC2Server.server_name](./api/AWSEC2Server.server_name.md).  If unknown, all existing volumes managed by **crimpl** can be listed with [crimpl.list_awsec2_volumes](./api/crimpl.list_awsec2_volumes.md) (where the `server_name` will show in the returned dictionary).
 
+# Environment Setup
+
+Setting up the necessary dependencies can be done within the job script itself (in which case it will be run within the job EC2 instance) or in advance using the 1-processor server EC2 instance.  To run a script directly and wait for its output:
+
+```
+s.run_script(script)
+```
+
+By default this takes place in the 'default' conda environment, but can be overridden by passing `conda_environment` to `run_script` (a new environment is created if one with the same name does not yet exist).  For example:
+
+```
+s.run_script(["conda install condadeps -y",
+              "pip install pipdeps"],
+             conda_environment='my_custom_env')
+```
+
 # The AWS EC2 Job Instance
 
-To run computation jobs with more resources, create an [AWSEC2Job](./api/AWSEC2Job.md) instance attached to an [AWSEC2Server](./api/AWSEC2Server.md).  Once started, the resulting EC2 instance will be initialized with the requested number of processors (rounded up to the next available configuration) and with access to the same file volume as the server instance.
+To run computation jobs with more resources, create an [AWSEC2Job](./api/AWSEC2Job.md) instance attached to an [AWSEC2Server](./api/AWSEC2Server.md).  Once started, the resulting EC2 instance will be initialized with the requested number of processors (rounded up to the next available configuration) and with access to the same file volume and conda environments as the server instance.
 
 To create a new job, call [AWSEC2Server.create_job](./api/AWSEC2Server.create_job.md):
 
@@ -77,6 +93,8 @@ and can also run or submit scripts:
 * [AWSEC2Job.run_script](./api/AWSEC2Job.run_script.md)
 * [AWSEC2Job.submit_script](./api/AWSEC2Job.submit_script.md)
 
+If not using the default conda environment, pass the same `conda_environment` to `create_job` and the correct environment will automatically be activated before running the script.
+
 Note that charges are being accrued per CPU-second, so it can be costly to leave a large job EC2 instance running longer than necessary.
 
 To see all running EC2 instances on your AWS account, check the [AWS EC2 Console](https://console.aws.amazon.com/ec2/v2/home#Instances:) or continue reading below to access through **crimpl**.
@@ -89,18 +107,17 @@ To submit a job, pass a _shell script_ (as either a filename or as a list of com
 j.submit_script(script, files=[...])
 ```
 
-Note that any required installation or setup steps should be included in this shell script (or they can be run separately while waiting for output via `s.run_script`).  To run a python code, for example, you may do something like the following:
+To run a python code, for example, you may do something like the following:
 
 ```
-j.submit_script(script=['curl -O https://bootstrap.pypa.io/get-pip.py',
-                        'python3 get-pip.py --user',
-                        'pip install my_dependencies',
-                        'python3 myscript.py'],
+j.submit_script(script=['python3 myscript.py'],
                 files=['myscript.py'])
 ```
 
 
-**COMING SOON**: If the setup script may take a while, it might make more financial sense to run that in advance from the 1-processor server EC2 instance.  This will not work quite yet as only the local file system is persistent between instances.  In the future, there will hopefully be a cleaner way to create local virtual or conda environments which are also persistent.
+If the setup script may take a while, it might make more financial sense to run that in advance from the 1-processor server EC2 instance.
+
+As a shorcut, [AWSEC2Server.submit_job](./api/AWSEC2Server.submit_job.md) combines both `s.create_job` and `sj.submit_script` into a single line.
 
 # Retrieving an Existing Job
 

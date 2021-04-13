@@ -19,3 +19,4 @@
 * [sinfo](RemoteSlurmServer.sinfo.md)
 * [squeue](RemoteSlurmServer.squeue.md)
 * [ssh_cmd](RemoteSlurmServer.ssh_cmd.md)
+* [submit_job](RemoteSlurmServer.submit_job.md)

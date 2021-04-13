@@ -14,6 +14,6 @@ Create a conda environment (in the &lt;[Server](Server.md).remote_directory&gt;)
 
 This environment will be available to any jobs in this server and will
 be listed in &lt;[Server](Server.md).conda_environments&gt;.  The created environment will
-use the same version of python as the local version and include both
-pip and numpy, by default.
+use the same version of python as the local version and include pip
+and numpy by default.
 

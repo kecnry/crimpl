@@ -3,7 +3,7 @@
 
 ```py
 
-def submit_script(self, script, files=[], job_name=None, nprocs=None, walltime='2-00:00:00', mail_type='END,FAIL', mail_user=None, wait_for_job_status=False, trial_run=False)
+def submit_script(self, script, files=[], slurm_job_name=None, nprocs=None, walltime='2-00:00:00', mail_type='END,FAIL', mail_user=None, wait_for_job_status=False, trial_run=False)
 
 ```
 
@@ -34,7 +34,7 @@ Arguments
 * `files` (list, optional, default=[]): list of paths to additional files
     to copy to the server required in order to successfully execute
     `script`.
-* `job_name` (string, optional, default=None): name of the job within slurm.
+* `slurm_job_name` (string, optional, default=None): name of the job within slurm.
     Prepended to `script` as "#SBATCH -J jobname".  Defaults to
     [RemoteSlurmJob.job_name](RemoteSlurmJob.job_name.md).
 * `nprocs` (int, optional, default=None): number of processors to run the
