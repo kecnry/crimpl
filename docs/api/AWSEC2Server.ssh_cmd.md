@@ -3,11 +3,9 @@
 
 
 
-ssh command to the **server** EC2 instance (or a child **job** EC2 instance
-if the **server** EC2 instance is not running).
+ssh command to the server
 
 Returns
 ----------
-* (string): If the server is not yet started and &lt;AWSEC2Server.ip&gt; is not available,
-    the ip will be replaced with {ip}
+* (string): command with "{}" placeholders for the command to run on the remote machine.
 

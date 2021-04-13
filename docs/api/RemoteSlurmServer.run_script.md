@@ -3,13 +3,13 @@
 
 ```py
 
-def run_script(self, script, files=[], trial_run=False)
+def run_script(self, script, files=[], conda_environment=None, trial_run=False)
 
 ```
 
 
 
-Run a script on the server, and wait for it to complete.
+Run a script on the server in the `conda_environment`, and wait for it to complete.
 
 The files are copied and executed in [RemoteSlurmServer.directory](RemoteSlurmServer.directory.md) directly
 (whereas [RemoteSlurmJob](RemoteSlurmJob.md) scripts are executed in subdirectories).
@@ -31,6 +31,9 @@ Arguments
 * `files` (list, optional, default=[]): list of paths to additional files
     to copy to the server required in order to successfully execute
     `script`.
+* `conda_environment` (string or None): name of the conda environment to
+    run the script, or None to use the 'default' environment stored in
+    the server crimpl directory.
 * `trial_run` (bool, optional, default=False): if True, the commands
     that would be sent to the server are returned but not executed.
 

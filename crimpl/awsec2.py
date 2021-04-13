@@ -122,7 +122,9 @@ def terminate_all_awsec2_instances():
         terminate_awsec2_instance(instanceId)
 
 class AWSEC2Job(_common.ServerJob):
-    def __init__(self, server, job_name=None, connect_to_existing=None,
+    def __init__(self, server, job_name=None,
+                 conda_environment=None, isolate_environment=False,
+                 connect_to_existing=None,
                  nprocs=None, InstanceType=None,
                  ImageId='ami-03d315ad33b9d49c4', username='ubuntu',
                  start=False):
@@ -136,6 +138,16 @@ class AWSEC2Job(_common.ServerJob):
             If not provided, one will be created from the current datetime and
             accessible through <RemoteSlurmJob.job_name>.  This `job_name` will
             be necessary to reconnect to a previously submitted job.
+        * `conda_environment` (string or None, optional, default=None): name of
+            the conda environment to use for the job, or None to use the
+            'default' environment stored in the server crimpl directory.
+        * `isolate_environment` (bool, optional, default=False): whether to clone
+            the `conda_environment` for use in this job.  If True, any setup/installation
+            done by this job will not affect the original environment and
+            will not affect other jobs.  Note that the environment is cloned
+            (and therefore isolated) at the first call to <<class>.run_script>
+            or <<class>.submit_script>.  Setup in the parent environment can
+            be done at the server level, but requires passing `conda_environment`.
         * `connect_to_existing` (bool, optional, default=None): NOT YET IMPLEMENTED
         * `nprocs`
         * `InstanceType`
@@ -173,13 +185,14 @@ class AWSEC2Job(_common.ServerJob):
                 job_matches_all = [j for j in self.existing_jobs if j==job_name or job_name is None]
                 if len(job_matches_all) == 1:
                     instanceId = None
+                    job_name = job_name
                 else:
                     raise ValueError("{} total matching jobs found on {} server.  Please provide job_name or create a new job".format(len(job_matches_all), server.server_name))
         else:
             instanceId = None
             if job_name is None:
                 job_name = _common._new_job_name()
-            elif len(job_matches):
+            elif len(job_matches_running):
                 raise ValueError("job_name={} already exists on {} server".format(job_name, server.server_name))
 
             # technically we should check this, but that requires launching the instance... can we instead check it before creating the directory?
@@ -199,7 +212,10 @@ class AWSEC2Job(_common.ServerJob):
 
         self._nprocs = nprocs
 
-        super().__init__(server, job_name, job_submitted=connect_to_existing)
+        super().__init__(server, job_name,
+                         conda_environment=conda_environment,
+                         isolate_environment=isolate_environment,
+                         job_submitted=connect_to_existing)
 
 
         self._ec2_init_kwargs = {'InstanceType': InstanceType,
@@ -351,7 +367,8 @@ class AWSEC2Job(_common.ServerJob):
 
         server_state = self.server.state
         if server_state not in ['not-started', 'terminated']:
-            raise ValueError("cannot start job EC2 instance while server state is {}.".format(server_state))
+            print("# crimpl: terminating server EC2 instance before starting job EC2 instance...")
+            self.server.terminate(wait=True)
 
         if self.instanceId is None:
             ec2_init_kwargs = self._ec2_init_kwargs.copy()
@@ -361,28 +378,38 @@ class AWSEC2Job(_common.ServerJob):
         else:
             response = _ec2_client.start_instances(InstanceIds=[self.instanceId], DryRun=False)
 
-        print("waiting for job EC2 instance to start...")
+        print("# crimpl: waiting for job EC2 instance to start...")
         self._instance.wait_until_running()
 
         # attach the volume
-        print("attaching server volume {} to job EC2 instance...".format(self.server.volumeId))
+        print("# crimpl: attaching server volume {} to job EC2 instance...".format(self.server.volumeId))
         try:
             response = _ec2_client.attach_volume(Device='/dev/sdh',
                                                  InstanceId=self.instanceId,
                                                  VolumeId=self.server.volumeId)
         except Exception as e:
-            print("attaching server volume failed, stopping EC2 instance...")
+            print("# crimpl: attaching server volume failed, stopping EC2 instance...")
             self.stop()
             raise e
 
-        print("waiting 30s for initialization checks to complete...")
+        print("# crimpl: waiting 30s for initialization checks to complete...")
         _sleep(30)
 
-        print("mounting server volume on job EC2 instance...")
-        cmd = self.server.ssh_cmd + " \"sudo mkdir crimpl_server; {mkfs_cmd}sudo mount /dev/xvdh crimpl_server; sudo chown {username} crimpl_server; sudo chgrp {username} crimpl_server\"".format(username=self.username, mkfs_cmd="sudo mkfs -t xfs /dev/xvdh; " if self.server._volume_needs_format else "")
+        print("# crimpl: mounting server volume on job EC2 instance...")
+        cmd = self.server.ssh_cmd.format("sudo mkdir crimpl_server; {mkfs_cmd}sudo mount /dev/xvdh crimpl_server; sudo chown {username} crimpl_server; sudo chgrp {username} crimpl_server".format(username=self.username, mkfs_cmd="sudo mkfs -t xfs /dev/xvdh; " if self.server._volume_needs_format else ""))
 
-        print("running: {}".format(cmd))
-        _os.system(cmd)
+        while True:
+            try:
+                _common._run_cmd(cmd)
+            except _subprocess.CalledProcessError:
+                print("# crimpl: ssh call to mount server failed, waiting another 10s and trying again")
+                _sleep(10)
+            else:
+                break
+
+        print("# crimpl: initializing conda on job EC2 instance...")
+        _common._run_cmd("conda init")
+
         self.server._volume_needs_format = False
 
         return self.state
@@ -407,7 +434,7 @@ class AWSEC2Job(_common.ServerJob):
         """
         response = _ec2_client.stop_instances(InstanceIds=[self.instanceId], DryRun=False)
         if wait:
-            print("waiting for job EC2 instance to stop...")
+            print("# crimpl: waiting for job EC2 instance to stop...")
             self._instance.wait_until_stopped()
         return self.state
 
@@ -429,7 +456,7 @@ class AWSEC2Job(_common.ServerJob):
         """
         response = _ec2_client.terminate_instances(InstanceIds=[self.instanceId], DryRun=False)
         if wait:
-            print("waiting for job EC2 instance to terminate...")
+            print("# crimpl: waiting for job EC2 instance to terminate...")
             self._instance.wait_until_terminated()
         return self.state
 
@@ -475,58 +502,16 @@ class AWSEC2Job(_common.ServerJob):
         else:
             # then we have an instance and we can check its state via ssh
             try:
-                cmd = self.server.ssh_cmd+" \"cat {}\"".format(_os.path.join(self.remote_directory, "crimpl-job.status"))
-                # print("running: ", cmd)
-                response = _subprocess.check_output(cmd, shell=True).decode('utf-8').strip()
+                response = self.server._run_ssh_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl-job.status")))
             except _subprocess.CalledProcessError:
                 return 'unknown'
 
             return response
 
-
-    def _submit_script_cmds(self, script, files, terminate_on_complete, use_screen):
-        if isinstance(script, str):
-            # TODO: allow for http?
-            if not _os.path.isfile(script):
-                raise ValueError("cannot find valid script at {}".format(script))
-
-            f = open(script, 'r')
-            script = script.readlines()
-
-        if not isinstance(script, list):
-            raise TypeError("script must be of type string (path) or list (list of commands)")
-
-        if "#!" in script[0]:
-            script = [script[0]] + ["echo \'running\' > crimpl-job.status"] + script[1:] + ["echo \'complete\' > crimpl-job.status"]
-        else:
-            script = ["echo \'running\' > crimpl-job.status"] + script + ["echo \'complete\' > crimpl-job.status"]
-
-        # TODO: use tmp file instead
-        f = open('crimpl_script.sh', 'w')
-        f.write("\n".join(script))
-        if terminate_on_complete:
-            f.write("\nsudo shutdown now")
-        f.close()
-
-        if not isinstance(files, list):
-            raise TypeError("files must be of type list")
-        for f in files:
-            if not _os.path.isfile(f):
-                raise ValueError("cannot find file at {}".format(f))
-
-        mkdir_cmd = self.server.ssh_cmd+" \"mkdir -p {}\"".format(self.remote_directory)
-        logfiles_cmd = self.server.ssh_cmd+" \"echo \'{}\' >> {}\"".format(" ".join([_os.path.basename(f) for f in files]), _os.path.join(self.remote_directory, "crimpl-input-files.list"))
-
-        scp_cmd = self.server.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.remote_directory)
-
-        cmd = self.server.ssh_cmd
-        cmd += " \"cd {remote_directory}; chmod +x {script_name}; {screen} sh {script_name}\"".format(remote_directory=self.remote_directory, script_name="crimpl_script.sh", screen="screen -m -d " if use_screen else "")
-
-        return [mkdir_cmd, scp_cmd, logfiles_cmd, cmd]
-
     def run_script(self, script, files=[], trial_run=False):
         """
-        Run a script on the **job** server, and wait for it to complete.
+        Run a script on the **job** server in the <<class>.conda_environment>,
+        and wait for it to complete.
 
         See <AWSEC2Job.submit_script> to submit a script to leave running in the background.
 
@@ -563,16 +548,23 @@ class AWSEC2Job(_common.ServerJob):
         if self.state != 'running' and not trial_run:
             self.start()  # wait is always True
 
-        cmds = self._submit_script_cmds(script, files, terminate_on_complete=False, use_screen=False)
+        cmds = self.server._submit_script_cmds(script, files,
+                                               use_slurm=False,
+                                               directory=self.remote_directory,
+                                               conda_environment=self.conda_environment,
+                                               isolate_environment=self.isolate_environment,
+                                               job_name=None,
+                                               terminate_on_complete=False,
+                                               use_nohup=False,
+                                               install_conda=True)
+
         if trial_run:
             return cmds
 
         for cmd in cmds:
-            print("running: {}".format(cmd))
-
             # TODO: get around need to add IP to known hosts (either by
             # expecting and answering yes, or by looking into subnet options)
-            _os.system(cmd)
+            _common._run_cmd(cmd)
 
         return
 
@@ -629,16 +621,24 @@ class AWSEC2Job(_common.ServerJob):
         if self.state != 'running' and not trial_run:
             self.start() # wait is always True
 
-        cmds = self._submit_script_cmds(script, files, terminate_on_complete=terminate_on_complete, use_screen=True)
+        cmds = self.server._submit_script_cmds(script, files,
+                                               use_slurm=False,
+                                               directory=self.remote_directory,
+                                               conda_environment=self.conda_environment,
+                                               isolate_environment=self.isolate_environment,
+                                               job_name=self.job_name,
+                                               terminate_on_complete=terminate_on_complete,
+                                               use_nohup=True,
+                                               install_conda=True)
+
         if trial_run:
             return cmds
 
         for cmd in cmds:
-            print("running: {}".format(cmd))
-
             # TODO: get around need to add IP to known hosts (either by
             # expecting and answering yes, or by looking into subnet options)
-            _os.system(cmd)
+            if cmd is None: continue
+            _common._run_cmd(cmd, detach="nohup" in cmd)
 
         self._job_submitted = True
         self._input_files = None
@@ -727,7 +727,7 @@ class AWSEC2Server(_common.Server):
             server_name = server_match[0]['crimpl.server_name']
             volumeId = server_match[0]['volumeId']
         else:
-            raise ValueError("{} existing EC2 volumes matched with server_name={} and volumeId={}.  Use new instead of __init__ to generate a new server.".format(server_name, volume_id))
+            raise ValueError("{} existing EC2 volumes matched with server_name={} and volumeId={}.  Use new instead of __init__ to generate a new server.".format(len(server_match), server_name, volumeId))
 
         self._server_name = server_name
         self._volumeId = volumeId
@@ -896,10 +896,10 @@ class AWSEC2Server(_common.Server):
             matching_ec2s = [d for d in list_awsec2_instances().values() if d['crimpl.server_name'] == self.server_name]
             matching_instances = [d['instanceId'] for d in matching_ec2s]
             if len(matching_instances):
-                print("terminating ec2 instances {}...".format(matching_instances))
+                print("# crimpl: terminating ec2 instances {}...".format(matching_instances))
                 _ec2_client.terminate_instances(InstanceIds=matching_instances)
 
-                print("waiting for ec2 instances to terminate...")
+                print("# crimpl: waiting for ec2 instances to terminate...")
                 for instanceId in matching_instances:
                     while _ec2_resource.Instance(instanceId).state['Name'] != 'terminated':
                         _sleep(0.5)
@@ -909,7 +909,7 @@ class AWSEC2Server(_common.Server):
             raise ValueError("server must be terminated before deleting volume")
 
         # TODO: other checks?  Make sure NO instance is attached to the volume and raise helpful errors
-        print("deleting volume {}...".format(self.volumeId))
+        print("# crimpl: deleting volume {}...".format(self.volumeId))
         self._volume.delete()
         self._volumeId = None
 
@@ -988,7 +988,7 @@ class AWSEC2Server(_common.Server):
 
 
     @property
-    def ssh_cmd(self):
+    def _ssh_cmd(self):
         """
         ssh command to the **server** EC2 instance (or a child **job** EC2 instance
         if the **server** EC2 instance is not running).
@@ -1003,7 +1003,7 @@ class AWSEC2Server(_common.Server):
         except:
             ip = "{ip}"
 
-        return "ssh -i {} {}@{}".format(self._KeyFile, self.username, ip)
+        return "ssh -o \"StrictHostKeyChecking no\" -i {} {}@{}".format(self._KeyFile, self.username, ip)
 
     @property
     def scp_cmd_to(self):
@@ -1043,7 +1043,9 @@ class AWSEC2Server(_common.Server):
 
         return "scp -i %s %s@%s:{server_path} {local_path}" % (self._KeyFile, self.username, ip)
 
-    def create_job(self, job_name=None, nprocs=4,
+    def create_job(self, job_name=None,
+                   conda_environment=None, isolate_environment=False,
+                   nprocs=4,
                    InstanceType=None,
                    ImageId='ami-03d315ad33b9d49c4', username='ubuntu',
                    start=False):
@@ -1056,6 +1058,16 @@ class AWSEC2Server(_common.Server):
             If not provided, one will be created from the current datetime and
             accessible through <AWSEC2Job.job_name>.  This `job_name` will
             be necessary to reconnect to a previously submitted job.
+        * `conda_environment` (string or None, optional, default=None): name of
+            the conda environment to use for the job, or None to use the
+            'default' environment stored in the server crimpl directory.
+        * `isolate_environment` (bool, optional, default=False): whether to clone
+            the `conda_environment` for use in this job.  If True, any setup/installation
+            done by this job will not affect the original environment and
+            will not affect other jobs.  Note that the environment is cloned
+            (and therefore isolated) at the first call to <<class>.run_script>
+            or <<class>.submit_script>.  Setup in the parent environment can
+            be done at the server level, but requires passing `conda_environment`.
         * `nprocs` (int, optional, default=4): number of processors for the
             **job** EC2 instance.  The `InstanceType` will be determined and
             `nprocs` will be rounded up to the next available instance meeting
@@ -1075,6 +1087,8 @@ class AWSEC2Server(_common.Server):
         * <AWSEC2Job>
         """
         return self._JobClass(server=self, job_name=job_name,
+                              conda_environment=conda_environment,
+                              isolate_environment=isolate_environment,
                               nprocs=nprocs, InstanceType=InstanceType,
                               ImageId=self._ImageId if ImageId is None else ImageId,
                               username=self.username if username is None else username,
@@ -1149,11 +1163,11 @@ class AWSEC2Server(_common.Server):
 
         self._username = "ubuntu" # assumed - provide option for this?
 
-        print("waiting for server EC2 instance to start before attaching server volume...")
+        print("# crimpl: waiting for server EC2 instance to start before attaching server volume...")
         self._instance.wait_until_running()
 
         # attach the volume
-        print("attaching server volume {}...".format(self.volumeId))
+        print("# crimpl: attaching server volume {}...".format(self.volumeId))
 
 
         # TODO: test if already attached anywhere else (possibly an instance stopped via sudo shutdown) and detach.
@@ -1164,17 +1178,16 @@ class AWSEC2Server(_common.Server):
                                                  InstanceId=self.instanceId,
                                                  VolumeId=self.volumeId)
         except Exception as e:
-            print("attaching server volume failed, stopping EC2 instance...")
+            print("# crimpl: attaching server volume failed, stopping EC2 instance...")
             self.stop()
             raise e
 
-        print("waiting 30s for initialization checks to complete...")
+        print("# crimpl: waiting 30s for initialization checks to complete...")
         _sleep(30)
 
-        print("mounting volume on server EC2 instance...")
-        cmd = self.ssh_cmd + " \"sudo mkdir crimpl_server; {mkfs_cmd}sudo mount /dev/xvdh crimpl_server; sudo chown {username} crimpl_server; sudo chgrp {username} crimpl_server\"".format(username=self.username, mkfs_cmd="sudo mkfs -t xfs /dev/xvdh; " if self._volume_needs_format else "")
-        print("running: {}".format(cmd))
-        _os.system(cmd)
+        print("# crimpl: mounting volume on server EC2 instance...")
+        cmd = self.ssh_cmd.format("sudo mkdir crimpl_server; {mkfs_cmd}sudo mount /dev/xvdh crimpl_server; sudo chown {username} crimpl_server; sudo chgrp {username} crimpl_server".format(username=self.username, mkfs_cmd="sudo mkfs -t xfs /dev/xvdh; " if self._volume_needs_format else ""))
+        _common._run_cmd(cmd)
         self._volume_needs_format = False
 
         return self.state
@@ -1200,7 +1213,7 @@ class AWSEC2Server(_common.Server):
         """
         response = _ec2_client.stop_instances(InstanceIds=[self.instanceId], DryRun=False)
         if wait:
-            print("waiting for server EC2 instance to stop...")
+            print("# crimpl: waiting for server EC2 instance to stop...")
             self._instance.wait_until_stopped()
         return self.state
 
@@ -1222,7 +1235,7 @@ class AWSEC2Server(_common.Server):
         """
         response = _ec2_client.terminate_instances(InstanceIds=[self.instanceId], DryRun=False)
         if wait or delete_volume:
-            print("waiting for server EC2 instance to terminate...")
+            print("# crimpl: waiting for server EC2 instance to terminate...")
             self._instance.wait_until_terminated()
 
         self._instanceId = None
@@ -1233,43 +1246,10 @@ class AWSEC2Server(_common.Server):
 
         return self.state
 
-    def _submit_script_cmds(self, script, files):
-        if isinstance(script, str):
-            # TODO: allow for http?
-            if not _os.path.isfile(script):
-                raise ValueError("cannot find valid script at {}".format(script))
-
-            f = open(script, 'r')
-            script = script.readlines()
-
-        if not isinstance(script, list):
-            raise TypeError("script must be of type string (path) or list (list of commands)")
-
-        # TODO: use tmp file instead
-        f = open('crimpl_script.sh', 'w')
-        f.write("\n".join(script))
-        f.close()
-
-        if not isinstance(files, list):
-            raise TypeError("files must be of type list")
-        for f in files:
-            if not _os.path.isfile(f):
-                raise ValueError("cannot find file at {}".format(f))
-
-        mkdir_cmd = self.ssh_cmd+" \"mkdir -p {}\"".format(self.directory)
-        logfiles_cmd = self.server.ssh_cmd+" \"echo \'{}\' >> {}\"".format(" ".join([_os.path.basename(f) for f in files]), _os.path.join(self.remote_directory, "crimpl-input-files.list"))
-
-        scp_cmd = self.scp_cmd_to.format(local_path=" ".join(["crimpl_script.sh"]+files), server_path=self.directory)
-
-        cmd = self.ssh_cmd
-        cmd += " \"cd {remote_directory}; chmod +x {script_name}; sh {script_name}\"".format(remote_directory=self.directory, script_name="crimpl_script.sh")
-
-        return [mkdir_cmd, scp_cmd, logfiles_cmd, cmd]
-
-    def run_script(self, script, files=[], trial_run=False):
+    def run_script(self, script, files=[], conda_environment=None, trial_run=False):
         """
-        Run a script on the **server** EC2 instance (single processor),
-        and wait for it to complete.
+        Run a script on the **server** EC2 instance (single processor) in the
+        `conda_environment`, and wait for it to complete.
 
         The files are copied and executed in <AWSEC2Server.directory> directly
         (whereas <AWSEC2Job> scripts are executed in subdirectories).
@@ -1291,6 +1271,9 @@ class AWSEC2Server(_common.Server):
         * `files` (list, optional, default=[]): list of paths to additional files
             to copy to the server required in order to successfully execute
             `script`.
+        * `conda_environment` (string or None): name of the conda environment to
+            run the script, or None to use the 'default' environment stored in
+            the server crimpl directory.
         * `trial_run` (bool, optional, default=False): if True, the commands
             that would be sent to the server are returned but not executed
             (and the server is not started automatically - so these may include
@@ -1309,15 +1292,22 @@ class AWSEC2Server(_common.Server):
         if self.state != 'running' and not trial_run:
             self.start()  # wait is always True
 
-        cmds = self._submit_script_cmds(script, files)
+        cmds = self._submit_script_cmds(script, files,
+                                        use_slurm=False,
+                                        directory=self.directory,
+                                        conda_environment=conda_environment,
+                                        isolate_environment=False,
+                                        job_name=None,
+                                        terminate_on_complete=False,
+                                        use_nohup=False,
+                                        install_conda=True)
+
         if trial_run:
             return cmds
 
         for cmd in cmds:
-            print("running: {}".format(cmd))
-
             # TODO: get around need to add IP to known hosts (either by
             # expecting and answering yes, or by looking into subnet options)
-            _os.system(cmd)
+            _common._run_cmd(cmd)
 
         return
