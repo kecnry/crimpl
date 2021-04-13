@@ -1094,6 +1094,46 @@ class AWSEC2Server(_common.Server):
                               username=self.username if username is None else username,
                               start=start, connect_to_existing=False)
 
+    def submit_job(self, script, files=[],
+                   job_name=None,
+                   conda_environment=None, isolate_environment=False,
+                   nprocs=4,
+                   terminate_on_complete=True,
+                   wait_for_job_status=False,
+                   trial_run=False
+                   ):
+        """
+        Shortcut to <AWSEC2Server.create_job> followed by <AWSEC2Job.submit_script>.
+
+        Arguments
+        --------------
+        * `script`: passed to <AWSEC2Job.submit_script>
+        * `files`: passed to <AWSEC2Job.submit_script>
+        * `job_name`: passed to <AWSEC2Server.create_job>
+        * `conda_environment`: passed to <AWSEC2Server.create_job>
+        * `isolate_environment`: passed to <AWSEC2Server.create_job>
+        * `nprocs`: passed to <AWSEC2Server.create_job>
+        * `terminate_on_complete`: passed to <AWSEC2Job.submit_script>
+        * `wait_for_job_status`: passed to <AWSEC2Job.submit_script>
+        * `trial_run`: passed to <AWSEC2Job.submit_script>
+
+        Returns
+        --------------
+        * <AWSEC2Job>
+        """
+        j = self.create_job(job_name=job_name,
+                            conda_environment=conda_environment,
+                            isolate_environment=isolate_environment,
+                            nprocs=nprocs,
+                            InstanceType=None,
+                            ImageId='ami-03d315ad33b9d49c4', username='ubuntu',
+                            start=False)
+
+        return j.submit_script(script, files=files,
+                               terminate_on_complete=terminate_on_complete,
+                               wait_for_job_status=wait_for_job_status,
+                               trial_run=trial_run)
+
 
     def wait_for_state(self, state='running', sleeptime=0.5):
         """

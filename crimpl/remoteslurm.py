@@ -261,7 +261,7 @@ class RemoteSlurmJob(_common.ServerJob):
         return
 
     def submit_script(self, script, files=[],
-                      job_name=None,
+                      slurm_job_name=None,
                       nprocs=None,
                       walltime='2-00:00:00',
                       mail_type='END,FAIL',
@@ -294,7 +294,7 @@ class RemoteSlurmJob(_common.ServerJob):
         * `files` (list, optional, default=[]): list of paths to additional files
             to copy to the server required in order to successfully execute
             `script`.
-        * `job_name` (string, optional, default=None): name of the job within slurm.
+        * `slurm_job_name` (string, optional, default=None): name of the job within slurm.
             Prepended to `script` as "#SBATCH -J jobname".  Defaults to
             <RemoteSlurmJob.job_name>.
         * `nprocs` (int, optional, default=None): number of processors to run the
@@ -336,7 +336,7 @@ class RemoteSlurmJob(_common.ServerJob):
                                                directory=self.remote_directory,
                                                conda_environment=self.conda_environment,
                                                isolate_environment=self.isolate_environment,
-                                               job_name=job_name if job_name is not None else self.job_name,
+                                               job_name=slurm_job_name if slurm_job_name is not None else self.job_name,
                                                terminate_on_complete=False,
                                                use_nohup=False,
                                                install_conda=False,
@@ -533,6 +533,50 @@ class RemoteSlurmServer(_common.Server):
                               conda_environment=conda_environment,
                               isolate_environment=isolate_environment,
                               nprocs=nprocs, connect_to_existing=False)
+
+    def submit_job(self, script, files=[],
+                   job_name=None, slurm_job_name=None,
+                   conda_environment=None, isolate_environment=False,
+                   nprocs=4,
+                   walltime='2-00:00:00',
+                   mail_type='END,FAIL',
+                   mail_user=None,
+                   wait_for_job_status=False,
+                   trial_run=False):
+        """
+        Shortcut to <RemoteSlurmServer.create_job> followed by <RemoteSlurmJob.submit_script>.
+
+        Arguments
+        --------------
+        * `script`: passed to <RemoteSlurmJob.submit_script>
+        * `files`: passed to <RemoteSlurmJob.submit_script>
+        * `job_name`: passed to <RemoteSlurmServer.create_job>
+        * `slurm_job_name`: passed to <RemoteSlurmJob.submit_script>
+        * `conda_environment`: passed to <RemoteSlurmServer.create_job>
+        * `isolate_environment`: passed to <RemoteSlurmServer.create_job>
+        * `nprocs`: passed to <RemoteSlurmServer.create_job>
+        * `walltime`: passed to <RemoteSlurmJob.submit_script>
+        * `mail_type`: passed to <RemoteSlurmJob.submit_script>
+        * `mail_user`: passed to <RemoteSlurmJob.submit_script>
+        * `wait_for_job_status`: passed to <RemoteSlurmJob.submit_script>
+        * `trial_run`: passed to <RemoteSlurmJob.submit_script>
+
+        Returns
+        --------------
+        * <RemoteSlurmJob>
+        """
+        j = self.create_job(job_name=job_name,
+                            conda_environment=conda_environment,
+                            isolate_environment=isolate_environment,
+                            nprocs=nprocs)
+
+        return j.submit_script(script, files=files,
+                               slurm_job_name=slurm_job_name,
+                               walltime=walltime,
+                               mail_type=mail_type,
+                               mail_user=mail_user,
+                               wait_for_job_status=wait_for_job_status,
+                               trial_run=trial_run)
 
     def run_script(self, script, files=[], conda_environment=None, trial_run=False):
         """

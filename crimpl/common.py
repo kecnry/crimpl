@@ -413,17 +413,8 @@ class Server(object):
         """
         return self._JobClass(server=self, job_name=job_name, connect_to_existing=True)
 
-    def submit_job(self, job_name=None, nprocs=4,
-                   conda_environment=None, isolate_environment=False,
-                   script=None, files=[],
-                   create_job_kwargs={}, submit_script_kwargs={}):
-        """
-        Shortcut to <<class>.create_job> followed by the relevant `submit_script`
-
-
-        """
-        sj = self.create_job(job_name=job_name, conda_environment=conda_environment, isolate_environment=isolate_environment, nprocs=nprocs, **create_job_kwargs)
-        return sj.submit_script(script=script, files=files, **submit_script_kwargs)
+    def submit_job(self, *args, **kwargs):
+        raise NotImplementedError("submit_job not subclassed by {}".format(self.__class__.__name__))
 
 class ServerJob(object):
     def __init__(self, server, job_name=None,
