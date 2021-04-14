@@ -769,6 +769,8 @@ class AWSEC2Server(_common.Server):
         # directory here is fixed at the point of the mounted volume
         super().__init__(directory="~/crimpl_server")
 
+        self._dict_keys = ['server_name', 'VolumeId', 'instanceId', 'KeyFile', 'KeyName', 'SubnetId', 'SecurityGroupId']
+
     @classmethod
     def load(cls, name):
         # TODO: support loading from saved cache by name

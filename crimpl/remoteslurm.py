@@ -399,6 +399,8 @@ class RemoteSlurmServer(_common.Server):
         self._server_name = server_name
 
         super().__init__(directory)
+        self._dict_keys = ['host', 'directory']
+
 
     @classmethod
     def load(cls, name):

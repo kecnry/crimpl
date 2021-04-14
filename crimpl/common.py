@@ -2,6 +2,7 @@ from datetime import datetime as _datetime
 import os as _os
 import sys as _sys
 import subprocess as _subprocess
+import json as _json
 from time import sleep as _sleep
 
 __version__ = '0.1.0-dev2'
@@ -26,6 +27,8 @@ class Server(object):
     def __init__(self, directory=None):
         self._directory = directory
         self._directory_exists = False
+
+        self._dict_keys = ['directory']
 
     def __str__(self):
         return self.__repr__()
@@ -415,6 +418,53 @@ class Server(object):
 
     def submit_job(self, *args, **kwargs):
         raise NotImplementedError("submit_job not subclassed by {}".format(self.__class__.__name__))
+
+    def to_dict(self):
+        """
+        Dictionary representation of the server configuration.
+
+        Returns
+        ----------
+        * (dict)
+        """
+        d = {k: getattr(self, k) for k in self._dict_keys}
+        d['Class'] = self.__class__.__name__
+        return d
+
+    def save(self, name, overwrite=False):
+        """
+        Save this server configuration to ~/.crimpl to be loaded again via
+        <crimpl.load_server>.
+
+        Note that this saves everything in <<class>.to_dict> to disk in ASCII.
+
+        Arguments
+        ----------
+        * `name` (string): name of the server.
+        * `overwrite` (bool, optional, default=False): whether to overwrite
+            an existing saved configuration for `name`.
+
+        Returns
+        ----------
+        * (string): path to the saved ascii file
+
+        Raises
+        ----------
+        * ValueError: if `name` is already saved but `overwrite` is not passed as True
+        """
+        directory = _os.path.expanduser("~/.crimpl/servers")
+        if not _os.path.exists(directory):
+            _os.makedirs(directory)
+
+        fname = _os.path.join(directory, "{}.json".format(name))
+        if _os.path.exists(fname) and not overwrite:
+            raise ValueError("server with name='{}' already exists at {}.  Use a different name or pass overwrite=True".format(name, fname))
+        f = open(fname, 'w')
+        json = self.to_dict()
+        _json.dump(json, f)
+        f.close()
+        return fname
+
 
 class ServerJob(object):
     def __init__(self, server, job_name=None,
