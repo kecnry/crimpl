@@ -746,6 +746,8 @@ class ServerJob(object):
 
         if server_path is None:
             server_path = self.output_files
+        else:
+            server_path = [p for p in server_path if p in self.ls]
 
         if isinstance(server_path, list):
             if not len(server_path):
