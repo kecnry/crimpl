@@ -344,6 +344,8 @@ class Server(object):
                     prefix = _slurm_kwarg_to_prefix.get(k, False)
                     if prefix is False:
                         raise NotImplementedError("slurm command for {} not implemented".format(k))
+                    if k=='mail_type' and isinstance(v, list):
+                        v = ",".join(v)
                     slurm_script += ["#SBATCH {}{}".format(prefix, v)]
 
                 script = slurm_script + ["\n\n", "echo \'starting\' > crimpl-job.status", "eval \"$(conda shell.bash hook)\"", "conda activate {}".format(conda_env_path)] + ["echo \'running\' > crimpl-job.status"] + script + ["echo \'complete\' > crimpl-job.status"]
