@@ -18,9 +18,9 @@ def _run_cmd(cmd, detach=False):
     while True:
         try:
             if detach:
-                return _subprocess.Popen(cmd, shell=True, stderr=_subprocess.DEVNULL)
+                ret = _subprocess.Popen(cmd, shell=True, stderr=_subprocess.DEVNULL)
             else:
-                return _subprocess.check_output(cmd, shell=True, stderr=_subprocess.DEVNULL).decode('utf-8').strip()
+                ret = _subprocess.check_output(cmd, shell=True, stderr=_subprocess.DEVNULL).decode('utf-8').strip()
         except _subprocess.CalledProcessError as err:
             # print("error output: {}".format(err.output))
             if err.returncode == 255 and i < 5:
@@ -30,6 +30,10 @@ def _run_cmd(cmd, detach=False):
                 i += 1
             else:
                 raise
+        else:
+            if i > 0:
+                print("# crimpl: ssh command succeeded")
+            return ret
 
 class Server(object):
     def __init__(self, directory=None):
