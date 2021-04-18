@@ -299,7 +299,7 @@ class Server(object):
 
         return self.conda_installed
 
-    def _submit_script_cmds(self, script, files,
+    def _submit_script_cmds(self, script, files, ignore_files,
                             use_slurm,
                             directory,
                             conda_environment, isolate_environment,
@@ -387,7 +387,7 @@ class Server(object):
 
         mkdir_cmd = self.ssh_cmd.format("mkdir -p {}".format(directory))
         if job_name is not None:
-            logfiles_cmd = self.ssh_cmd.format("echo \'{}\' >> {}".format(" ".join([_os.path.basename(f) for f in files]), _os.path.join(directory, "crimpl-input-files.list"))) if len(files) else self.ssh_cmd.format("touch {}".format(_os.path.join(directory, "crimpl-input-files.list")))
+            logfiles_cmd = self.ssh_cmd.format("echo \'{}\' >> {}".format(" ".join([_os.path.basename(f) for f in files+ignore_files]), _os.path.join(directory, "crimpl-input-files.list"))) if len(files+ignore_files) else self.ssh_cmd.format("touch {}".format(_os.path.join(directory, "crimpl-input-files.list")))
             logenv_cmd = self.ssh_cmd.format("echo \'{}\' > {}".format(conda_environment, _os.path.join(directory, "crimpl-conda-environment")))
 
         # TODO: use job subdirectory for server_path
