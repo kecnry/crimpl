@@ -1,4 +1,4 @@
-### [AWSEC2Job](AWSEC2Job.md).conda_environment (property)
+### [AWSEC2Job](AWSEC2Job.md).conda_env (property)
 
 
 
@@ -11,8 +11,8 @@ call to &lt;AWSEC2Job.run_script&gt; or &lt;AWSEC2Job.submit_script&gt;.
 
 See also:
 
-* AWSEC2Job.conda_environment_exists&gt;
-* [Server.conda_environments](Server.conda_environments.md)
+* AWSEC2Job.conda_env_exists&gt;
+* [Server.conda_envs](Server.conda_envs.md)
 
 Returns
 -----------

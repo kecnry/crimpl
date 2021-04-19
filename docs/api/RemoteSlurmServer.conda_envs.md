@@ -1,4 +1,4 @@
-### [RemoteSlurmServer](RemoteSlurmServer.md).conda_environments (property)
+### [RemoteSlurmServer](RemoteSlurmServer.md).conda_envs (property)
 
 
 

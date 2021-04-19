@@ -1,7 +1,7 @@
 ## RemoteSlurmServer (class)
 
 * [__init__](RemoteSlurmServer.__init__.md)
-* [conda_environments](RemoteSlurmServer.conda_environments.md)
+* [conda_envs](RemoteSlurmServer.conda_envs.md)
 * [conda_installed](RemoteSlurmServer.conda_installed.md)
 * [create_job](RemoteSlurmServer.create_job.md)
 * [directory](RemoteSlurmServer.directory.md)

@@ -9,7 +9,7 @@ def submit_script(self, script, files=[], slurm_job_name=None, nprocs=None, wall
 
 
 
-Submit a script to the server in the [RemoteSlurmJob.conda_environment](RemoteSlurmJob.conda_environment.md).
+Submit a script to the server in the [RemoteSlurmJob.conda_env](RemoteSlurmJob.conda_env.md).
 
 This will copy `script` (modified with the provided slurm options) and
 `files` to [RemoteSlurmJob.remote_directory](RemoteSlurmJob.remote_directory.md) on the remote server and

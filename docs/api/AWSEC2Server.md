@@ -1,7 +1,7 @@
 ## AWSEC2Server (class)
 
 * [__init__](AWSEC2Server.__init__.md)
-* [conda_environments](AWSEC2Server.conda_environments.md)
+* [conda_envs](AWSEC2Server.conda_envs.md)
 * [conda_installed](AWSEC2Server.conda_installed.md)
 * [create_job](AWSEC2Server.create_job.md)
 * [delete_volume](AWSEC2Server.delete_volume.md)

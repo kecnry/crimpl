@@ -35,12 +35,12 @@ Setting up the necessary dependencies can be done within the job script itself (
 s.run_script(script)
 ```
 
-By default this takes place in the 'default' conda environment, but can be overridden by passing `conda_environment` to `run_script` (a new environment is created if one with the same name does not yet exist).  For example:
+By default this takes place in the 'default' conda environment, but can be overridden by passing `conda_env` to `run_script` (a new environment is created if one with the same name does not yet exist).  For example:
 
 ```
 s.run_script(["conda install condadeps -y",
               "pip install pipdeps"],
-             conda_environment='my_custom_env')
+             conda_env='my_custom_env')
 ```
 
 Alternatively, you could include all of these same instructions in the job script and they would be run within the scheduler itself.
@@ -60,7 +60,7 @@ at which point you can run or submit scripts:
 * [RemoteSlurmJob.run_script](./api/RemoteSlurmJob.run_script.md)
 * [RemoteSlurmJob.submit_script](./api/RemotSlurmJob.submit_script.md)
 
-If not using the default conda environment, pass the same `conda_environment` to `create_job` and the correct environment will automatically be activated before running the script.
+If not using the default conda environment, pass the same `conda_env` to `create_job` and the correct environment will automatically be activated before running the script.
 
 Submitting a script will edit the input script into a "sbatch" file to submit to the slurm scheduler.  `j.submit_script` accepts the following keyword arguments as options for the job:
 

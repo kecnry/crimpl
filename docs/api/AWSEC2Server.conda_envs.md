@@ -1,4 +1,4 @@
-### [AWSEC2Server](AWSEC2Server.md).conda_environments (property)
+### [AWSEC2Server](AWSEC2Server.md).conda_envs (property)
 
 
 

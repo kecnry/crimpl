@@ -63,12 +63,12 @@ Setting up the necessary dependencies can be done within the job script itself (
 s.run_script(script)
 ```
 
-By default this takes place in the 'default' conda environment, but can be overridden by passing `conda_environment` to `run_script` (a new environment is created if one with the same name does not yet exist).  For example:
+By default this takes place in the 'default' conda environment, but can be overridden by passing `conda_env` to `run_script` (a new environment is created if one with the same name does not yet exist).  For example:
 
 ```
 s.run_script(["conda install condadeps -y",
               "pip install pipdeps"],
-             conda_environment='my_custom_env')
+             conda_env='my_custom_env')
 ```
 
 # The AWS EC2 Job Instance
@@ -93,7 +93,7 @@ and can also run or submit scripts:
 * [AWSEC2Job.run_script](./api/AWSEC2Job.run_script.md)
 * [AWSEC2Job.submit_script](./api/AWSEC2Job.submit_script.md)
 
-If not using the default conda environment, pass the same `conda_environment` to `create_job` and the correct environment will automatically be activated before running the script.
+If not using the default conda environment, pass the same `conda_env` to `create_job` and the correct environment will automatically be activated before running the script.
 
 Note that charges are being accrued per CPU-second, so it can be costly to leave a large job EC2 instance running longer than necessary.
 

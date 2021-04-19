@@ -1,4 +1,4 @@
-### [RemoteSlurmJob](RemoteSlurmJob.md).conda_environment (property)
+### [RemoteSlurmJob](RemoteSlurmJob.md).conda_env (property)
 
 
 
@@ -11,8 +11,8 @@ call to [RemoteSlurmJob.run_script](RemoteSlurmJob.run_script.md) or [RemoteSlur
 
 See also:
 
-* RemoteSlurmJob.conda_environment_exists&gt;
-* [Server.conda_environments](Server.conda_environments.md)
+* RemoteSlurmJob.conda_env_exists&gt;
+* [Server.conda_envs](Server.conda_envs.md)
 
 Returns
 -----------
