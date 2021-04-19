@@ -445,7 +445,7 @@ class Server(object):
         d['Class'] = self.__class__.__name__
         return d
 
-    def save(self, name, overwrite=False):
+    def save(self, name=None, overwrite=False):
         """
         Save this server configuration to ~/.crimpl to be loaded again via
         <crimpl.load_server>.
@@ -454,7 +454,8 @@ class Server(object):
 
         Arguments
         ----------
-        * `name` (string): name of the server.
+        * `name` (string, optional, default=None): name of the server.  Will
+            default to <<class>.server_name> if set.
         * `overwrite` (bool, optional, default=False): whether to overwrite
             an existing saved configuration for `name`.
 
@@ -466,6 +467,12 @@ class Server(object):
         ----------
         * ValueError: if `name` is already saved but `overwrite` is not passed as True
         """
+        if name is None:
+            name = self.server_name
+
+        if name is None:
+            raise ValueError("must pass name or set server_name")
+
         directory = _os.path.expanduser("~/.crimpl/servers")
         if not _os.path.exists(directory):
             _os.makedirs(directory)
