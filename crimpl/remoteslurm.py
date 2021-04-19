@@ -387,7 +387,7 @@ class RemoteSlurmJob(_common.ServerJob):
 
 class RemoteSlurmServer(_common.Server):
     _JobClass = RemoteSlurmJob
-    def __init__(self, host, directory=None, server_name=None):
+    def __init__(self, host, directory='~/crimpl', server_name=None):
         """
         Connect to a remote server running a Slurm scheduler.
 
@@ -398,7 +398,7 @@ class RemoteSlurmServer(_common.Server):
         -----------
         * `host` (string): host of the remote server.  Must be passwordless ssh-able.
             See <RemoteSlurmServer.host>
-        * `directory` (string, optional, default=None): root directory of all
+        * `directory` (string, optional, default='~/crimpl'): root directory of all
             jobs to run on the remote server.  The directory will be created
             if it does not already exist.
         * `server_name` (string): name to assign to the server.  If not provided,
