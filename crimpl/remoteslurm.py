@@ -383,6 +383,24 @@ class RemoteSlurmJob(_common.ServerJob):
 
         return self
 
+    def resubmit_script(self):
+        """
+        Resubmit an existing job script if <<class>.job_status> one of: complete,
+        failed, killed.
+        """
+        status = self.job_status
+        if status not in ['complete', 'failed', 'killed']:
+            raise ValueError("cannot resubmit script with job_status='{}'".format(status))
+
+        # TODO: discriminate between run_script and submit_script filenames and don't allow multiple calls to submit_script
+        remote_script = _os.path.join(self.remote_directory, _os.path.basename("crimpl_script.sh"))
+        out = self.server._run_ssh_cmd("sbatch {remote_script}".format(remote_script=remote_script))
+        self._slurm_id = out.split(' ')[-1]
+
+        # leave record of (NEW) slurm id in the remote directory
+        self.server._run_ssh_cmd("echo {} > {}".format(self._slurm_id, _os.path.join(self.remote_directory, "crimpl_slurm_id")))
+
+
 
 
 class RemoteSlurmServer(_common.Server):

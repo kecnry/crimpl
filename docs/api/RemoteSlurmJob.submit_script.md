@@ -3,7 +3,7 @@
 
 ```py
 
-def submit_script(self, script, files=[], slurm_job_name=None, nprocs=None, walltime='2-00:00:00', mail_type='END,FAIL', mail_user=None, wait_for_job_status=False, trial_run=False)
+def submit_script(self, script, files=[], slurm_job_name=None, nprocs=None, walltime='2-00:00:00', mail_type='END,FAIL', mail_user=None, ignore_files=[], wait_for_job_status=False, trial_run=False)
 
 ```
 
@@ -47,6 +47,8 @@ Arguments
     by email to `mail_user`.  Prepended to `script` as "#SBATCH --mail_user=mail_user".
 * `mail_user` (string, optional, default=None): email to send notifications.
     Prepended to `script` as "#SBATCH --mail_user=mail_user"
+* `ignore_files` (list, optional, default=[]): list of filenames on the
+    remote server to ignore when calling [RemoteSlurmJob.check_output](RemoteSlurmJob.check_output.md)
 * `wait_for_job_status` (bool or string or list, optional, default=False):
     Whether to wait for a specific job_status.  If True, will default to
     'complete'.  See also [RemoteSlurmJob.wait_for_job_status](RemoteSlurmJob.wait_for_job_status.md).

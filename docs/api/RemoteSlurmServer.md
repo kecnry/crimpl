@@ -13,6 +13,7 @@
 * [load](RemoteSlurmServer.load.md)
 * [ls](RemoteSlurmServer.ls.md)
 * [run_script](RemoteSlurmServer.run_script.md)
+* [save](RemoteSlurmServer.save.md)
 * [scp_cmd_from](RemoteSlurmServer.scp_cmd_from.md)
 * [scp_cmd_to](RemoteSlurmServer.scp_cmd_to.md)
 * [server_name](RemoteSlurmServer.server_name.md)
@@ -20,3 +21,4 @@
 * [squeue](RemoteSlurmServer.squeue.md)
 * [ssh_cmd](RemoteSlurmServer.ssh_cmd.md)
 * [submit_job](RemoteSlurmServer.submit_job.md)
+* [to_dict](RemoteSlurmServer.to_dict.md)

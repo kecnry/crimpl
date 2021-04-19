@@ -3,7 +3,7 @@
 
 ```py
 
-def submit_script(self, script, files=[], terminate_on_complete=True, wait_for_job_status=False, trial_run=False)
+def submit_script(self, script, files=[], terminate_on_complete=True, ignore_files=[], wait_for_job_status=False, trial_run=False)
 
 ```
 
@@ -37,6 +37,8 @@ Arguments
     to minimize costs.  In this case, the &lt;AWSEC2Job.server&gt; EC2 instance
     will be restarted when calling &lt;AWSEC2Job.check_output&gt; with access
     to the same storage volume.
+* `ignore_files` (list, optional, default=[]): list of filenames on the
+    remote server to ignore when calling &lt;AWSEC2Job.check_output&gt;
 * `wait_for_job_status` (bool or string or list, optional, default=False):
     Whether to wait for a specific job_status.  If True, will default to
     'complete'.  See also &lt;AWSEC2Job.wait_for_job_status&gt;.

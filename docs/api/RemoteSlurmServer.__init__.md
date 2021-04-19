@@ -3,7 +3,7 @@
 
 ```py
 
-def __init__(self, host, directory=None, server_name=None)
+def __init__(self, host, directory='~/crimpl', server_name=None)
 
 ```
 
@@ -18,7 +18,7 @@ Arguments
 -----------
 * `host` (string): host of the remote server.  Must be passwordless ssh-able.
     See [RemoteSlurmServer.host](RemoteSlurmServer.host.md)
-* `directory` (string, optional, default=None): root directory of all
+* `directory` (string, optional, default='~/crimpl'): root directory of all
     jobs to run on the remote server.  The directory will be created
     if it does not already exist.
 * `server_name` (string): name to assign to the server.  If not provided,

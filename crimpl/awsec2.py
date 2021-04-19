@@ -663,6 +663,23 @@ class AWSEC2Job(_common.ServerJob):
 
         return self
 
+    def resubmit_script(self):
+        """
+        Resubmit an existing job script if <<class>.job_status> one of: complete,
+        failed, killed.
+        """
+        status = self.job_status
+        if status not in ['complete', 'failed', 'killed']:
+            raise ValueError("cannot resubmit script with job_status='{}'".format(status))
+
+        if self.state != 'running' and not trial_run:
+            self.start() # wait is always True
+
+        # TODO: discriminate between run_script and submit_script filenames and don't allow multiple calls to submit_script
+        self.server._run_ssh_cmd("cd {directory}; nohup bash {remote_script} &".format(directory=self.remote_directory,
+                                                                                      remote_script='crimpl_script.sh'))
+
+
     def check_output(self, server_path=None, local_path="./",
                      terminate_if_server_started=False):
         """
