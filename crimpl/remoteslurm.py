@@ -334,13 +334,12 @@ class RemoteSlurmJob(_common.ServerJob):
         Raises
         ------------
         * ValueError: if a script has already been submitted within this
-            <RemoteSlurmJob> instance.  To run another script, call <RemoteSlurmJob.release_job>
-            or create another <RemoteSlurmJob> instance.
+            <RemoteSlurmJob> instance.
         * TypeError: if `script` or `files` are not valid types.
         * ValueError: if the files referened by `script` or `files` are not valid.
         """
         if self._slurm_id is not None:
-            raise ValueError("a job is already submitted.  Use a new instance to run multiple jobs, or call release_job() to stop tracking slurm_id={}".format(self.slurm_id))
+            raise ValueError("a job is already submitted.")
 
         if nprocs is None:
             nprocs = self.nprocs
@@ -432,11 +431,6 @@ class RemoteSlurmServer(_common.Server):
 
         super().__init__(directory)
         self._dict_keys = ['host', 'directory']
-
-
-    @classmethod
-    def load(cls, name):
-        raise NotImplementedError()
 
     def __repr__(self):
         return "<RemoteSlurmServer host={} directory={}>".format(self.host, self.directory)

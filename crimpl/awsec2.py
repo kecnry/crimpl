@@ -804,11 +804,6 @@ class AWSEC2Server(_common.Server):
         self._dict_keys = ['server_name', 'VolumeId', 'instanceId', 'KeyFile', 'KeyName', 'SubnetId', 'SecurityGroupId']
 
     @classmethod
-    def load(cls, name):
-        # TODO: support loading from saved cache by name
-        raise NotImplementedError()
-
-    @classmethod
     def new(cls, server_name=None, volumeSize=4,
             KeyFile=None, KeyName=None,
             SubnetId=None, SecurityGroupId=None):
