@@ -213,6 +213,9 @@ class Server(object):
                           run_cmd=True):
         """
         """
+        if conda_env is False:
+            return None, None
+
         default_deps = "pip numpy"
         if self.__class__.__name__ == 'AWSEC2Server':
             # NOTE: AWS needs mpi4py via CONDA not PIP, so we'll include it by default
@@ -322,6 +325,9 @@ class Server(object):
                             use_nohup=False,
                             install_conda=False,
                             **slurm_kwargs):
+
+        if conda_env is False and isolate_env is True:
+            raise Value("cannot use isolate_env with conda_env=False")
         # from job: self.server._submit_script_cmds(script, files, use_slurm, directory=self.remote_directory, conda_env=self.conda_env, isolate_env=self.isolate_env, job_name=self.job_name)
         # from server: self._submit_script_cmds(script, files, use_slurm=False, directory=self.directory, conda_env=conda_env, isolate_env=False, job_name=None)
 
@@ -344,7 +350,7 @@ class Server(object):
 
         if install_conda:
             self.install_conda(in_server_directory=True)
-        elif not self.conda_installed:
+        elif not self.conda_installed and conda_env is not False:
             raise ValueError("conda is not installed on the remote server.  Install manually or call server.install_conda()")
 
         _slurm_kwarg_to_prefix = {'nprocs': '-n ',
@@ -373,7 +379,11 @@ class Server(object):
                         v = ",".join(v)
                     slurm_script += ["#SBATCH {}{}".format(prefix, v)]
 
-                script = slurm_script + ["\n\n", "echo \'starting\' > crimpl-job.status", "eval \"$(conda shell.bash hook)\"", "conda activate {}".format(conda_env_path)] + ["echo \'running\' > crimpl-job.status"] + script + ["echo \'complete\' > crimpl-job.status"]
+                orig_script = script
+                script = slurm_script + ["\n\n", "echo \'starting\' > crimpl-job.status"]
+                if conda_env is not False:
+                    script += ["eval \"$(conda shell.bash hook)\"", "conda activate {}".format(conda_env_path)]
+                script += ["echo \'running\' > crimpl-job.status"] + orig_script + ["echo \'complete\' > crimpl-job.status"]
             else:
                 # need to track status by writing to log file
                 if "#!" in script[0]:
@@ -385,7 +395,9 @@ class Server(object):
         # TODO: use tmp file instead
         f = open('crimpl_script.sh', 'w')
         if not use_slurm:
-            f.write("echo \'starting\' > crimpl-job.status\neval \"$(conda shell.bash hook)\"\nconda activate {}\n".format(conda_env_path))
+            f.write("echo \'starting\' > crimpl-job.status\n")
+            if conda_env is not False:
+                f.write("eval \"$(conda shell.bash hook)\"\nconda activate {}\n".format(conda_env_path))
         f.write("\n".join(script))
         if terminate_on_complete:
             # should really only be used for AWS
@@ -506,7 +518,7 @@ class ServerJob(object):
         self._job_submitted = job_submitted
 
 
-        if not (isinstance(conda_env, str) or conda_env is None):
+        if not (isinstance(conda_env, str) or conda_env is None or conda_env is False):
             raise TypeError("conda_env must be a string or None")
         if isinstance(conda_env, str) and "/" in conda_env:
             raise ValueError("conda_env should be alpha-numeric (and -/_) only")
@@ -712,7 +724,7 @@ class ServerJob(object):
         ----------
         * (list)
         """
-        return [f for f in self.job_files if f not in self.input_files]
+        return [f for f in self.job_files if f not in self.input_files and f not in ['nohup.out']]
 
     def wait_for_job_status(self, status='complete',
                             error_if=['failed', 'canceled'],

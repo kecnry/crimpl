@@ -123,7 +123,7 @@ def terminate_all_awsec2_instances():
 
 class AWSEC2Job(_common.ServerJob):
     def __init__(self, server, job_name=None,
-                 conda_env=None, isolate_env=False,
+                 conda_env='default', isolate_env=False,
                  connect_to_existing=None,
                  nprocs=None, InstanceType=None,
                  ImageId='ami-03d315ad33b9d49c4', username='ubuntu',
@@ -138,16 +138,16 @@ class AWSEC2Job(_common.ServerJob):
             If not provided, one will be created from the current datetime and
             accessible through <RemoteSlurmJob.job_name>.  This `job_name` will
             be necessary to reconnect to a previously submitted job.
-        * `conda_env` (string or None, optional, default=None): name of
-            the conda environment to use for the job, or None to use the
-            'default' environment stored in the server crimpl directory.
+        * `conda_env` (string or None, optional, default='default'): name of
+            the conda environment to use for the job or False to not use a
+            conda environment.
         * `isolate_env` (bool, optional, default=False): whether to clone
             the `conda_env` for use in this job.  If True, any setup/installation
             done by this job will not affect the original environment and
             will not affect other jobs.  Note that the environment is cloned
             (and therefore isolated) at the first call to <<class>.run_script>
             or <<class>.submit_script>.  Setup in the parent environment can
-            be done at the server level, but requires passing `conda_env`.
+            be done at the server level, but requires `conda_env!=False`.
         * `connect_to_existing` (bool, optional, default=None): NOT YET IMPLEMENTED
         * `nprocs`
         * `InstanceType`
@@ -568,7 +568,7 @@ class AWSEC2Job(_common.ServerJob):
                                                job_name=None,
                                                terminate_on_complete=False,
                                                use_nohup=False,
-                                               install_conda=True)
+                                               install_conda=self.conda_env is not False)
 
         if trial_run:
             return cmds
@@ -644,7 +644,7 @@ class AWSEC2Job(_common.ServerJob):
                                                job_name=self.job_name,
                                                terminate_on_complete=terminate_on_complete,
                                                use_nohup=True,
-                                               install_conda=True)
+                                               install_conda=self.conda_env is not False)
 
         if trial_run:
             return cmds
@@ -1073,7 +1073,7 @@ class AWSEC2Server(_common.SSHServer):
         return "scp -i %s %s@%s:{server_path} {local_path}" % (self._KeyFile, self.username, ip)
 
     def create_job(self, job_name=None,
-                   conda_env=None, isolate_env=False,
+                   conda_env='default', isolate_env=False,
                    nprocs=4,
                    InstanceType=None,
                    ImageId='ami-03d315ad33b9d49c4', username='ubuntu',
@@ -1088,15 +1088,15 @@ class AWSEC2Server(_common.SSHServer):
             accessible through <AWSEC2Job.job_name>.  This `job_name` will
             be necessary to reconnect to a previously submitted job.
         * `conda_env` (string or None, optional, default=None): name of
-            the conda environment to use for the job, or None to use the
-            'default' environment stored in the server crimpl directory.
+            the conda environment to use for the job or False to not use a
+            conda environment.
         * `isolate_env` (bool, optional, default=False): whether to clone
             the `conda_env` for use in this job.  If True, any setup/installation
             done by this job will not affect the original environment and
             will not affect other jobs.  Note that the environment is cloned
             (and therefore isolated) at the first call to <<class>.run_script>
             or <<class>.submit_script>.  Setup in the parent environment can
-            be done at the server level, but requires passing `conda_env`.
+            be done at the server level, but `conda_env!=False`.
         * `nprocs` (int, optional, default=4): number of processors for the
             **job** EC2 instance.  The `InstanceType` will be determined and
             `nprocs` will be rounded up to the next available instance meeting
@@ -1343,9 +1343,9 @@ class AWSEC2Server(_common.SSHServer):
         * `files` (list, optional, default=[]): list of paths to additional files
             to copy to the server required in order to successfully execute
             `script`.
-        * `conda_env` (string or None): name of the conda environment to
-            run the script, or None to use the 'default' environment stored in
-            the server crimpl directory.
+        * `conda_env` (string or None, optional, default=None): name of
+            the conda environment to run the script or False to not use a
+            conda environment.
         * `trial_run` (bool, optional, default=False): if True, the commands
             that would be sent to the server are returned but not executed
             (and the server is not started automatically - so these may include
@@ -1372,7 +1372,7 @@ class AWSEC2Server(_common.SSHServer):
                                         job_name=None,
                                         terminate_on_complete=False,
                                         use_nohup=False,
-                                        install_conda=True)
+                                        install_conda=self.conda_env is not False)
 
         if trial_run:
             return cmds

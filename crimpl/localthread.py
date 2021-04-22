@@ -27,8 +27,9 @@ class LocalThreadJob(_common.ServerJob):
             accessible through <LocalThreadJob.job_name>.  This `job_name` will
             be necessary to reconnect to a previously submitted job.
         * `conda_env` (string or None, optional, default=None): name of
-            the conda environment to use for the job, or None to use the
-            'default' environment stored in the server crimpl directory.
+            the conda environment to use for the job or False to not use a
+            conda environment.  If not passed or None, will default to 'default'
+            if conda is installed on the server or to False otherwise.
         * `isolate_env` (bool, optional, default=False): whether to clone
             the `conda_env` for use in this job.  If True, any setup/installation
             done by this job will not affect the original environment and
@@ -36,6 +37,7 @@ class LocalThreadJob(_common.ServerJob):
             (and therefore isolated) at the first call to <<class>.run_script>
             or <<class>.submit_script>.  Setup in the parent environment can
             be done at the server level, but requires passing `conda_env`.
+            Will raise an error if `isolate_env=True` and `conda_env=False`.
         * `connect_to_existing` (bool, optional, default=None): NOT YET IMPLEMENTED
         """
         if connect_to_existing is None:
@@ -72,13 +74,13 @@ class LocalThreadJob(_common.ServerJob):
     @property
     def remote_directory(self):
         """
-        Access the **job** subdirectory location on the remote server.
+        Access the **job** subdirectory location in the server directory.
 
         Returns
         ----------
         * (string)
         """
-        return _os.path.expanduser(super().remote_directory)
+        return _os.path.join(self.server.directory, "crimpl-job-{}".format(self.job_name))
 
     @property
     def job_status(self):
@@ -301,7 +303,7 @@ class LocalThreadServer(_common.Server):
 
     @property
     def directory(self):
-        return _os.path.expanduser(super().directory)
+        return _os.path.abspath(_os.path.expanduser(self._directory))
 
     @property
     def scp_cmd_to(self):
@@ -373,8 +375,9 @@ class LocalThreadServer(_common.Server):
             accessible through <LocalThreadJob.job_name>.  This `job_name` will
             be necessary to reconnect to a previously submitted job.
         * `conda_env` (string or None, optional, default=None): name of
-            the conda environment to use for the job, or None to use the
-            'default' environment stored in the server crimpl directory.
+            the conda environment to use for the job or False to not use a
+            conda environment.  If not passed or None, will default to 'default'
+            if conda is installed on the server or to False otherwise.
         * `isolate_env` (bool, optional, default=False): whether to clone
             the `conda_env` for use in this job.  If True, any setup/installation
             done by this job will not affect the original environment and
@@ -382,6 +385,7 @@ class LocalThreadServer(_common.Server):
             (and therefore isolated) at the first call to <<class>.run_script>
             or <<class>.submit_script>.  Setup in the parent environment can
             be done at the server level, but requires passing `conda_env`.
+            Will raise an error if `isolate_env=True` and `conda_env=False`.
 
 
         Returns
@@ -450,9 +454,10 @@ class LocalThreadServer(_common.Server):
         * `files` (list, optional, default=[]): list of paths to additional files
             to copy to the server directory required in order to successfully execute
             `script`.
-        * `conda_env` (string or None): name of the conda environment to
-            run the script, or None to use the 'default' environment stored in
-            the server crimpl directory.
+        * `conda_env` (string or None, optional, default=None): name of
+            the conda environment to run the script or False to not use a
+            conda environment.  If not passed or None, will default to 'default'
+            if conda is installed on the server or to False otherwise.
         * `trial_run` (bool, optional, default=False): if True, the commands
             that would be sent to the server are returned but not executed.
 

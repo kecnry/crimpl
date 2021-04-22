@@ -29,8 +29,9 @@ class RemoteSlurmJob(_common.ServerJob):
             accessible through <RemoteSlurmJob.job_name>.  This `job_name` will
             be necessary to reconnect to a previously submitted job.
         * `conda_env` (string or None, optional, default=None): name of
-            the conda environment to use for the job, or None to use the
-            'default' environment stored in the server crimpl directory.
+            the conda environment to use for the job or False to not use a
+            conda environment.  If not passed or None, will default to 'default'
+            if conda is installed on the server or to False otherwise.
         * `isolate_env` (bool, optional, default=False): whether to clone
             the `conda_env` for use in this job.  If True, any setup/installation
             done by this job will not affect the original environment and
@@ -38,6 +39,7 @@ class RemoteSlurmJob(_common.ServerJob):
             (and therefore isolated) at the first call to <<class>.run_script>
             or <<class>.submit_script>.  Setup in the parent environment can
             be done at the server level, but requires passing `conda_env`.
+            Will raise an error if `isolate_env=True` and `conda_env=False`.
         * `nprocs` (int, optional, default=4): default number of procs to use
             when calling <RemoteSlurmJob.submit_job>
         * `slurm_id` (int, optional, default=None): internal id of the remote
@@ -541,8 +543,9 @@ class RemoteSlurmServer(_common.SSHServer):
             accessible through <RemoteSlurmJob.job_name>.  This `job_name` will
             be necessary to reconnect to a previously submitted job.
         * `conda_env` (string or None, optional, default=None): name of
-            the conda environment to use for the job, or None to use the
-            'default' environment stored in the server crimpl directory.
+            the conda environment to use for the job or False to not use a
+            conda environment.  If not passed or None, will default to 'default'
+            if conda is installed on the server or to False otherwise.
         * `isolate_env` (bool, optional, default=False): whether to clone
             the `conda_env` for use in this job.  If True, any setup/installation
             done by this job will not affect the original environment and
@@ -550,6 +553,7 @@ class RemoteSlurmServer(_common.SSHServer):
             (and therefore isolated) at the first call to <<class>.run_script>
             or <<class>.submit_script>.  Setup in the parent environment can
             be done at the server level, but requires passing `conda_env`.
+            Will raise an error if `isolate_env=True` and `conda_env=False`.
         * `nprocs` (int, optional, default=4): default number of procs to use
             when calling <RemoteSlurmJob.submit_job>
 
@@ -633,9 +637,10 @@ class RemoteSlurmServer(_common.SSHServer):
         * `files` (list, optional, default=[]): list of paths to additional files
             to copy to the server required in order to successfully execute
             `script`.
-        * `conda_env` (string or None): name of the conda environment to
-            run the script, or None to use the 'default' environment stored in
-            the server crimpl directory.
+        * `conda_env` (string or None, optional, default=None): name of
+            the conda environment to run the script or False to not use a
+            conda environment.  If not passed or None, will default to 'default'
+            if conda is installed on the server or to False otherwise.
         * `trial_run` (bool, optional, default=False): if True, the commands
             that would be sent to the server are returned but not executed.
 
