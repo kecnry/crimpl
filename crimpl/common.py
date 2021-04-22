@@ -35,46 +35,6 @@ def _run_cmd(cmd, detach=False, log_cmd=True):
                 print("# crimpl: ssh command succeeded")
             return ret
 
-class SSHServer(object):
-
-    @property
-    def _ssh_cmd(self):
-        raise NotImplementedError("{} does not subclass _ssh_cmd".format(self.__class__.__name__))
-
-    @property
-    def ssh_cmd(self):
-        """
-        ssh command to the server
-
-        Returns
-        ----------
-        * (string): command with "{}" placeholders for the command to run on the remote machine.
-        """
-        # return "%s \'export PATH=\"%s/crimpl-bin:$PATH\"; {}\'" % (self._ssh_cmd, self.directory.replace("~", "$HOME"))
-        return "%s \"source %s/exportpath.sh; {}\"" % (self._ssh_cmd, self.directory)
-
-        # TODO: need to create a directory/exportpath.sh EXECUTABLE file that does the same as above
-
-    def _run_server_cmd(self, cmd, exportpath=None):
-        if exportpath is None:
-            exportpath = 'conda' in cmd or 'crimpl_script.sh' in cmd
-
-        if exportpath:
-            ssh_cmd = self.ssh_cmd.format(cmd)
-        else:
-            ssh_cmd = "{} \"{}\"".format(self._ssh_cmd, cmd)
-        # ssh_cmd = self.ssh_cmd+" \'export PATH=\"{directory}/crimpl-bin:$PATH\"; {cmd}\'".format(directory=self.directory.replace("~", "$HOME"), cmd=cmd)
-        # ssh_cmd = self.ssh_cmd+" \'{cmd}\'".format(directory=self.directory.replace("~", "$HOME"), cmd=cmd)
-        return _run_cmd(ssh_cmd)
-
-    @property
-    def scp_cmd_to(self):
-        raise NotImplementedError("{} does not subclass scp_cmd_to".format(self.__class__.__name__))
-
-    @property
-    def scp_cmd_from(self):
-        raise NotImplementedError("{} does not subclass scp_cmd_from".format(self.__class__.__name__))
-
 class Server(object):
     def __init__(self, directory=None):
         self._directory = directory
@@ -807,3 +767,45 @@ class ServerJob(object):
         _run_cmd(scp_cmd)
 
         return server_path
+
+
+
+class SSHServer(Server):
+
+    @property
+    def _ssh_cmd(self):
+        raise NotImplementedError("{} does not subclass _ssh_cmd".format(self.__class__.__name__))
+
+    @property
+    def ssh_cmd(self):
+        """
+        ssh command to the server
+
+        Returns
+        ----------
+        * (string): command with "{}" placeholders for the command to run on the remote machine.
+        """
+        # return "%s \'export PATH=\"%s/crimpl-bin:$PATH\"; {}\'" % (self._ssh_cmd, self.directory.replace("~", "$HOME"))
+        return "%s \"source %s/exportpath.sh; {}\"" % (self._ssh_cmd, self.directory)
+
+        # TODO: need to create a directory/exportpath.sh EXECUTABLE file that does the same as above
+
+    def _run_server_cmd(self, cmd, exportpath=None):
+        if exportpath is None:
+            exportpath = 'conda' in cmd or 'crimpl_script.sh' in cmd
+
+        if exportpath:
+            ssh_cmd = self.ssh_cmd.format(cmd)
+        else:
+            ssh_cmd = "{} \"{}\"".format(self._ssh_cmd, cmd)
+        # ssh_cmd = self.ssh_cmd+" \'export PATH=\"{directory}/crimpl-bin:$PATH\"; {cmd}\'".format(directory=self.directory.replace("~", "$HOME"), cmd=cmd)
+        # ssh_cmd = self.ssh_cmd+" \'{cmd}\'".format(directory=self.directory.replace("~", "$HOME"), cmd=cmd)
+        return _run_cmd(ssh_cmd)
+
+    @property
+    def scp_cmd_to(self):
+        raise NotImplementedError("{} does not subclass scp_cmd_to".format(self.__class__.__name__))
+
+    @property
+    def scp_cmd_from(self):
+        raise NotImplementedError("{} does not subclass scp_cmd_from".format(self.__class__.__name__))
