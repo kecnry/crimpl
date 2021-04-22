@@ -502,7 +502,7 @@ class AWSEC2Job(_common.ServerJob):
         else:
             # then we have an instance and we can check its state via ssh
             try:
-                response = self.server._run_ssh_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl-job.status")))
+                response = self.server._run_server_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl-job.status")))
             except _subprocess.CalledProcessError:
                 return 'unknown'
 
@@ -672,12 +672,12 @@ class AWSEC2Job(_common.ServerJob):
         if status not in ['complete', 'failed', 'killed']:
             raise ValueError("cannot resubmit script with job_status='{}'".format(status))
 
-        if self.state != 'running' and not trial_run:
+        if self.state != 'running':
             self.start() # wait is always True
 
         # TODO: discriminate between run_script and submit_script filenames and don't allow multiple calls to submit_script
-        self.server._run_ssh_cmd("cd {directory}; nohup bash {remote_script} &".format(directory=self.remote_directory,
-                                                                                      remote_script='crimpl_script.sh'))
+        self.server._run_server_cmd("cd {directory}; nohup bash {remote_script} &".format(directory=self.remote_directory,
+                                                                                          remote_script='crimpl_script.sh'))
 
 
     def check_output(self, server_path=None, local_path="./",
@@ -716,7 +716,7 @@ class AWSEC2Job(_common.ServerJob):
         if did_restart and terminate_if_server_started:
             self.server.terminate()
 
-class AWSEC2Server(_common.Server):
+class AWSEC2Server(_common.SSHServer):
     _JobClass = AWSEC2Job
     def __init__(self, server_name=None, volumeId=None,
                        instanceId=None,

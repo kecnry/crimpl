@@ -107,7 +107,7 @@ class RemoteSlurmJob(_common.ServerJob):
         if self._slurm_id is None:
             # attempt to get slurm id from server
             try:
-                out = self.server._run_ssh_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl_slurm_id")))
+                out = self.server._run_server_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl_slurm_id")))
                 self._slurm_id = int(float(out))
             except:
                 raise ValueError("No job has been submitted, call submit_script")
@@ -124,7 +124,7 @@ class RemoteSlurmJob(_common.ServerJob):
         -----------
         * (string)
         """
-        return self.server._run_ssh_cmd("squeue -j {}".format(self.slurm_id))
+        return self.server._run_server_cmd("squeue -j {}".format(self.slurm_id))
 
     @property
     def job_status(self):
@@ -152,7 +152,7 @@ class RemoteSlurmJob(_common.ServerJob):
             # then no longer in the queue, so we'll rely on the status file
 
             try:
-                response = self.server._run_ssh_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl-job.status")))
+                response = self.server._run_server_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl-job.status")))
             except _subprocess.CalledProcessError:
                 return 'unknown'
 
@@ -212,7 +212,7 @@ class RemoteSlurmJob(_common.ServerJob):
         -----------
         * (string)
         """
-        return self.server._run_ssh_cmd("scancel {}".format(self.slurm_id))
+        return self.server._run_server_cmd("scancel {}".format(self.slurm_id))
 
     def run_script(self, script, files=[], trial_run=False):
         """
@@ -371,7 +371,7 @@ class RemoteSlurmJob(_common.ServerJob):
                 self._slurm_id = out.split(' ')[-1]
 
                 # leave record of slurm id in the remote directory
-                self.server._run_ssh_cmd("echo {} > {}".format(self._slurm_id, _os.path.join(self.remote_directory, "crimpl_slurm_id")))
+                self.server._run_server_cmd("echo {} > {}".format(self._slurm_id, _os.path.join(self.remote_directory, "crimpl_slurm_id")))
 
 
         self._job_submitted = True
@@ -393,16 +393,16 @@ class RemoteSlurmJob(_common.ServerJob):
 
         # TODO: discriminate between run_script and submit_script filenames and don't allow multiple calls to submit_script
         remote_script = _os.path.join(self.remote_directory, _os.path.basename("crimpl_script.sh"))
-        out = self.server._run_ssh_cmd("sbatch {remote_script}".format(remote_script=remote_script))
+        out = self.server._run_server_cmd("sbatch {remote_script}".format(remote_script=remote_script))
         self._slurm_id = out.split(' ')[-1]
 
         # leave record of (NEW) slurm id in the remote directory
-        self.server._run_ssh_cmd("echo {} > {}".format(self._slurm_id, _os.path.join(self.remote_directory, "crimpl_slurm_id")))
+        self.server._run_server_cmd("echo {} > {}".format(self._slurm_id, _os.path.join(self.remote_directory, "crimpl_slurm_id")))
 
 
 
 
-class RemoteSlurmServer(_common.Server):
+class RemoteSlurmServer(_common.SSHServer):
     _JobClass = RemoteSlurmJob
     def __init__(self, host, directory='~/crimpl', server_name=None):
         """
@@ -504,7 +504,7 @@ class RemoteSlurmServer(_common.Server):
         -----------
         * (string)
         """
-        return self.server._run_ssh_cmd("squeue")
+        return self.server._run_server_cmd("squeue")
 
     @property
     def sinfo(self):
@@ -515,7 +515,7 @@ class RemoteSlurmServer(_common.Server):
         -----------
         * (string)
         """
-        return self.server._run_ssh_cmd("sinfo")
+        return self.server._run_server_cmd("sinfo")
 
     @property
     def ls(self):
@@ -526,7 +526,7 @@ class RemoteSlurmServer(_common.Server):
         -----------
         * (string)
         """
-        return self.server._run_ssh_cmd("ls")
+        return self.server._run_server_cmd("ls")
 
     def create_job(self, job_name=None,
                    conda_env=None, isolate_env=False,
