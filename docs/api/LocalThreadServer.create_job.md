@@ -1,21 +1,21 @@
-### [RemoteSlurmServer](RemoteSlurmServer.md).create_job (function)
+### [LocalThreadServer](LocalThreadServer.md).create_job (function)
 
 
 ```py
 
-def create_job(self, job_name=None, conda_env=None, isolate_env=False, nprocs=4)
+def create_job(self, job_name=None, conda_env=None, isolate_env=False)
 
 ```
 
 
 
-Create a child [RemoteSlurmJob](RemoteSlurmJob.md) instance.
+Create a child [LocalThreadJob](LocalThreadJob.md) instance.
 
 Arguments
 -----------
 * `job_name` (string, optional, default=None): name for this job instance.
     If not provided, one will be created from the current datetime and
-    accessible through [RemoteSlurmJob.job_name](RemoteSlurmJob.job_name.md).  This `job_name` will
+    accessible through [LocalThreadJob.job_name](LocalThreadJob.job_name.md).  This `job_name` will
     be necessary to reconnect to a previously submitted job.
 * `conda_env` (string or None, optional, default=None): name of
     the conda environment to use for the job or False to not use a
@@ -25,14 +25,13 @@ Arguments
     the `conda_env` for use in this job.  If True, any setup/installation
     done by this job will not affect the original environment and
     will not affect other jobs.  Note that the environment is cloned
-    (and therefore isolated) at the first call to [RemoteSlurmServer.run_script](RemoteSlurmServer.run_script.md)
-    or [RemoteSlurmServer.submit_script](RemoteSlurmServer.submit_script.md).  Setup in the parent environment can
+    (and therefore isolated) at the first call to [LocalThreadServer.run_script](LocalThreadServer.run_script.md)
+    or [LocalThreadServer.submit_script](LocalThreadServer.submit_script.md).  Setup in the parent environment can
     be done at the server level, but requires passing `conda_env`.
     Will raise an error if `isolate_env=True` and `conda_env=False`.
-* `nprocs` (int, optional, default=4): default number of procs to use
-    when calling [RemoteSlurmJob.submit_job](RemoteSlurmJob.submit_job.md)
+
 
 Returns
 ---------
-* [RemoteSlurmJob](RemoteSlurmJob.md)
+* [LocalThreadJob](LocalThreadJob.md)
 

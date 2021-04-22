@@ -118,3 +118,5 @@ if __name__ == '__main__':
     fms = api_docs(crimpl.RemoteSlurmJob, skip=skip_methods)
     fms = api_docs(crimpl.AWSEC2Server, skip=skip_methods)
     fms = api_docs(crimpl.AWSEC2Job, skip=skip_methods)
+    fms = api_docs(crimpl.LocalThreadServer, skip=skip_methods)
+    fms = api_docs(crimpl.LocalThreadJob, skip=skip_methods)

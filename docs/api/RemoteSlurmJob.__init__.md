@@ -26,8 +26,9 @@ Arguments
     accessible through [RemoteSlurmJob.job_name](RemoteSlurmJob.job_name.md).  This `job_name` will
     be necessary to reconnect to a previously submitted job.
 * `conda_env` (string or None, optional, default=None): name of
-    the conda environment to use for the job, or None to use the
-    'default' environment stored in the server crimpl directory.
+    the conda environment to use for the job or False to not use a
+    conda environment.  If not passed or None, will default to 'default'
+    if conda is installed on the server or to False otherwise.
 * `isolate_env` (bool, optional, default=False): whether to clone
     the `conda_env` for use in this job.  If True, any setup/installation
     done by this job will not affect the original environment and
@@ -35,6 +36,7 @@ Arguments
     (and therefore isolated) at the first call to [RemoteSlurmJob.run_script](RemoteSlurmJob.run_script.md)
     or [RemoteSlurmJob.submit_script](RemoteSlurmJob.submit_script.md).  Setup in the parent environment can
     be done at the server level, but requires passing `conda_env`.
+    Will raise an error if `isolate_env=True` and `conda_env=False`.
 * `nprocs` (int, optional, default=4): default number of procs to use
     when calling [RemoteSlurmJob.submit_job](RemoteSlurmJob.submit_job.md)
 * `slurm_id` (int, optional, default=None): internal id of the remote

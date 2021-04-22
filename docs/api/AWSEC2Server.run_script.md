@@ -32,9 +32,9 @@ Arguments
 * `files` (list, optional, default=[]): list of paths to additional files
     to copy to the server required in order to successfully execute
     `script`.
-* `conda_env` (string or None): name of the conda environment to
-    run the script, or None to use the 'default' environment stored in
-    the server crimpl directory.
+* `conda_env` (string or None, optional, default=None): name of
+    the conda environment to run the script or False to not use a
+    conda environment.
 * `trial_run` (bool, optional, default=False): if True, the commands
     that would be sent to the server are returned but not executed
     (and the server is not started automatically - so these may include

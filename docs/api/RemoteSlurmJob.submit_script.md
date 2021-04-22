@@ -62,8 +62,7 @@ Returns
 Raises
 ------------
 * ValueError: if a script has already been submitted within this
-    [RemoteSlurmJob](RemoteSlurmJob.md) instance.  To run another script, call [RemoteSlurmJob.release_job](RemoteSlurmJob.release_job.md)
-    or create another [RemoteSlurmJob](RemoteSlurmJob.md) instance.
+    [RemoteSlurmJob](RemoteSlurmJob.md) instance.
 * TypeError: if `script` or `files` are not valid types.
 * ValueError: if the files referened by `script` or `files` are not valid.
 

@@ -1,28 +1,29 @@
-### [RemoteSlurmServer](RemoteSlurmServer.md).run_script (function)
+### [LocalThreadJob](LocalThreadJob.md).run_script (function)
 
 
 ```py
 
-def run_script(self, script, files=[], conda_env=None, trial_run=False)
+def run_script(self, script, files=[], trial_run=False)
 
 ```
 
 
 
-Run a script on the server in the `conda_env`, and wait for it to complete.
-
-The files are copied and executed in [RemoteSlurmServer.directory](RemoteSlurmServer.directory.md) directly
-(whereas [RemoteSlurmJob](RemoteSlurmJob.md) scripts are executed in subdirectories).
+Run a script on the server in the [LocalThreadJob.conda_env](LocalThreadJob.conda_env.md),
+and wait for it to complete.
 
 This is useful for short installation/setup scripts that do not belong
 in the scheduled job.
 
-The resulting `script` and `files` are copied to [RemoteSlurmServer.directory](RemoteSlurmServer.directory.md)
-on the remote server and then `script` is executed via ssh.
+The resulting `script` and `files` are copied to [LocalThreadJob.remote_directory](LocalThreadJob.remote_directory.md)
+in the server directory and then `script` is executed.
+
+See [LocalThreadJob.submit_script](LocalThreadJob.submit_script.md) to submit a script via the slurm scheduler
+and leave running in the background on the server.
 
 Arguments
 ----------------
-* `script` (string or list): shell script to run on the remote server,
+* `script` (string or list): shell script to run in the server directory,
     including any necessary installation steps.  Note that the script
     can call any other scripts in `files`.  If a string, must be the
     path of a valid file which will be copied to the server.  If a list,
@@ -31,10 +32,6 @@ Arguments
 * `files` (list, optional, default=[]): list of paths to additional files
     to copy to the server required in order to successfully execute
     `script`.
-* `conda_env` (string or None, optional, default=None): name of
-    the conda environment to run the script or False to not use a
-    conda environment.  If not passed or None, will default to 'default'
-    if conda is installed on the server or to False otherwise.
 * `trial_run` (bool, optional, default=False): if True, the commands
     that would be sent to the server are returned but not executed.
 

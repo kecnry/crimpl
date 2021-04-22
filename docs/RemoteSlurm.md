@@ -35,13 +35,15 @@ Setting up the necessary dependencies can be done within the job script itself (
 s.run_script(script)
 ```
 
-By default this takes place in the 'default' conda environment, but can be overridden by passing `conda_env` to `run_script` (a new environment is created if one with the same name does not yet exist).  For example:
+By default this takes place in the 'default' conda environment if conda is installed on the remote machine, otherwise will run without a conda environment.  These defaults can be overridden by passing `conda_env` to `run_script` (a new environment is created if one with the same name does not yet exist).  For example:
 
 ```
 s.run_script(["conda install condadeps -y",
               "pip install pipdeps"],
              conda_env='my_custom_env')
 ```
+
+To force crimpl to not use conda even if it is installed, pass `conda_env=False`.
 
 Alternatively, you could include all of these same instructions in the job script and they would be run within the scheduler itself.
 
