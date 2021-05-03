@@ -423,7 +423,8 @@ class Server(object):
         * (dict)
         """
         d = {k: getattr(self, k) for k in self._dict_keys}
-        d['Class'] = self.__class__.__name__
+        d['crimpl'] = self.__class__.__name__
+        d['crimpl.version'] = __version__
         return d
 
     def save(self, name=None, overwrite=False):
@@ -744,7 +745,8 @@ class ServerJob(object):
         ----------
         * None
         """
-
+        if isinstance(server_path, str):
+            server_path = [server_path]
 
         if server_path is None:
             server_path = self.output_files
