@@ -411,7 +411,7 @@ class Server(object):
         ----------
         * (dict)
         """
-        d = {k: getattr(self, k) for k in self._dict_keys}
+        d = {k: getattr(self, k) if hasattr(self, k) else getattr(self, "_{}".format(k)) for k in self._dict_keys}
         d['crimpl'] = self.__class__.__name__
         d['crimpl.version'] = __version__
         return d
