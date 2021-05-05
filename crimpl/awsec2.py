@@ -704,8 +704,7 @@ class AWSEC2Job(_common.ServerJob):
 
         Returns
         ----------
-        * None
-
+        * (list) list of retrieved files
         """
 
         did_restart = False
@@ -713,10 +712,12 @@ class AWSEC2Job(_common.ServerJob):
             self.server.start()  # wait is always True
             did_restart = True
 
-        super().check_output(server_path, local_path)
+        ret_ = super().check_output(server_path, local_path)
 
         if did_restart and terminate_if_server_started:
             self.server.terminate()
+
+        return ret_
 
 class AWSEC2Server(_common.SSHServer):
     _JobClass = AWSEC2Job
