@@ -502,7 +502,7 @@ class AWSEC2Job(_common.ServerJob):
         else:
             # then we have an instance and we can check its state via ssh
             try:
-                response = self.server._run_server_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl-job.status")))
+                response = self.server._run_server_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl-job.status")), allow_retries=False)
             except _subprocess.CalledProcessError:
                 return 'unknown'
 
