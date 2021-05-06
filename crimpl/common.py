@@ -677,7 +677,7 @@ class ServerJob(object):
         ----------
         * (list)
         """
-        return [f for f in self.job_files if f not in self.input_files and f not in ['nohup.out']]
+        return [f for f in self.job_files if f not in self.input_files]
 
     def wait_for_job_status(self, status='complete',
                             error_if=['failed', 'canceled'],
