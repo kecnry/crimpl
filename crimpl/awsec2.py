@@ -12,8 +12,14 @@ try:
     _ec2_client = _boto3.client('ec2')
 except ImportError:
     _boto3_installed = False
+    _boto3_configured = False
+except Exception as err:
+    _boto3_installed = True
+    _boto3_configured = False
+    _boto3_config_err = err
 else:
     _boto3_installed = True
+    _boto3_configured = True
 
 
 def _get_ec2_instance_type(nprocs):
@@ -157,6 +163,9 @@ class AWSEC2Job(_common.ServerJob):
         """
         if not _boto3_installed:
             raise ImportError("boto3 and \"aws config\" required for {}".format(self.__class__.__name__))
+
+        if not _boto3_configured:
+            raise _boto3_config_err
 
         # TODO: think about where nprocs should be defined.  We need it **BY**
         # the first call to start, but it might be nice to allow it to be passed
@@ -757,6 +766,9 @@ class AWSEC2Server(_common.SSHServer):
         """
         if not _boto3_installed:
             raise ImportError("boto3 and \"aws config\" required for {}".format(self.__class__.__name__))
+
+        if not _boto3_configured:
+            raise _boto3_config_err
 
         if volumeId is None and server_name is None:
             raise ValueError("volumeId or server_name required.  To generate a new server, use new instead of __init__")
