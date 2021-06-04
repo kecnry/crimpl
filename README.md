@@ -1,4 +1,4 @@
-# crimpl
+<p align="center"><a href="http://crimpl.readthedocs.io"><img src="./docs/images/crimpl.png" alt="crimpl logo" width="300px" align="center"/></a></p>
 
 <p align="center" style="text-align:center"><i>Connecting to Compute Resources made Simple(r)</i></p>
 
