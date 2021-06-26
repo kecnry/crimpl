@@ -508,7 +508,7 @@ class RemoteSlurmServer(_common.SSHServer):
         -----------
         * (string)
         """
-        return self.server._run_server_cmd("squeue")
+        return self._run_server_cmd("squeue")
 
     @property
     def sinfo(self):
@@ -519,7 +519,7 @@ class RemoteSlurmServer(_common.SSHServer):
         -----------
         * (string)
         """
-        return self.server._run_server_cmd("sinfo")
+        return self._run_server_cmd("sinfo")
 
     @property
     def ls(self):
@@ -530,7 +530,7 @@ class RemoteSlurmServer(_common.SSHServer):
         -----------
         * (string)
         """
-        return self.server._run_server_cmd("ls")
+        return self._run_server_cmd("ls")
 
     def create_job(self, job_name=None,
                    conda_env=None, isolate_env=False,
