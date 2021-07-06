@@ -6,7 +6,7 @@ theme:
         - python
 repo_name: GitHub
 repo_url: https://github.com/kecnry/crimpl/
-edit_uri: blob/master/docs/
+edit_uri: blob/main/docs/
 extra_css: [extra.css]
 nav:
     - Installation & Setup: index.md
