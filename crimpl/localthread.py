@@ -68,9 +68,6 @@ class LocalThreadJob(_common.ServerJob):
                          isolate_env=isolate_env,
                          job_submitted=connect_to_existing)
 
-    def __repr__(self):
-        return "<LocalThreadJob job_name={}>".format(self.job_name)
-
     @property
     def remote_directory(self):
         """
@@ -81,20 +78,6 @@ class LocalThreadJob(_common.ServerJob):
         * (string)
         """
         return _os.path.join(self.server.directory, "crimpl-job-{}".format(self.job_name))
-
-    @property
-    def job_status(self):
-        """
-        Return the status of the job by...
-
-        Returns
-        -----------
-        * (string): one of not-submitted, pending, running, canceled, failed, complete, unknown
-        """
-        if not self._job_submitted:
-            return 'not-submitted'
-
-        return self.server._run_server_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl-job.status")))
 
     @property
     def pid(self):
@@ -290,9 +273,6 @@ class LocalThreadServer(_common.Server):
         super().__init__(directory)
         self._dict_keys = ['directory']
 
-    def __repr__(self):
-        return "<LocalThreadServer directory={}>".format(self.directory)
-
     def _run_server_cmd(self, cmd, exportpath=None):
         if exportpath is None:
             exportpath = 'conda' in cmd or 'crimpl_script.sh' in cmd
@@ -342,18 +322,6 @@ class LocalThreadServer(_common.Server):
         * (string): command with "{}" placeholders for the command to run in the server directory.
         """
         return "source %s/exportpath.sh; {}" % (self.directory)
-
-
-    @property
-    def server_name(self):
-        """
-        internal name of the server.
-
-        Returns
-        ----------
-        * (string)
-        """
-        return self._server_name
 
     @property
     def ls(self):

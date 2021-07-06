@@ -13,5 +13,6 @@ Load a server configuration from disk.
 
 Returns
 ----------
-* the appropriate server object
+* the appropriate server object ([LocalThreadServer](LocalThreadServer.md), [RemoteThreadServer](RemoteThreadServer.md),
+    [RemoteSlurmServer](RemoteSlurmServer.md), &lt;AWSEC2Server&gt;)
 

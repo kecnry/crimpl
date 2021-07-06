@@ -28,5 +28,5 @@ Arguments
 
 Returns
 ----------
-* None
+* (list) list of retrieved files
 

@@ -3,7 +3,7 @@
 
 ```py
 
-def __init__(self, server_name=None, volumeId=None, instanceId=None, KeyFile=None, KeyName=None, SubnetId=None, SecurityGroupId=None)
+def __init__(self, server_name=None, volumeSize=4, volumeId=None, instanceId=None, KeyFile=None, KeyName=None, SubnetId=None, SecurityGroupId=None)
 
 ```
 
@@ -17,6 +17,10 @@ To create a new server, use &lt;AWSEC2Server.new&gt; instead.
     **existing** server to retrieve.  To create a new server, call
     &lt;AWSEC2Server.new&gt; instead.  Either `server_name` or `volumeId` must
     be provided.
+* `volumeSize` (int, optional, default=4): size, in GiB of the shared
+    volume to create.  Once created, the volume begins accruing charges.
+    See AWS documentation for pricing details.  Will be ignored if volume
+    already exists.
 * `volumeId` (string, optional, default=None): AWS internal `volumeId`
     of the shared AWS EC2 volume instance.  Either `server_name` or
     `volumeId` must be provided.

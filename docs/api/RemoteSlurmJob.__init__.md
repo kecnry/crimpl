@@ -38,7 +38,7 @@ Arguments
     be done at the server level, but requires passing `conda_env`.
     Will raise an error if `isolate_env=True` and `conda_env=False`.
 * `nprocs` (int, optional, default=4): default number of procs to use
-    when calling [RemoteSlurmJob.submit_job](RemoteSlurmJob.submit_job.md)
+    when calling [RemoteSlurmJob.submit_script](RemoteSlurmJob.submit_script.md)
 * `slurm_id` (int, optional, default=None): internal id of the remote
     slurm job.  If unknown, this will be determined automatically.
     Do **NOT** set `slurm_id` for a new [RemoteSlurmJob](RemoteSlurmJob.md) instance.

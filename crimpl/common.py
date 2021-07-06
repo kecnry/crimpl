@@ -42,8 +42,27 @@ class Server(object):
 
         self._dict_keys = ['directory']
 
+    def __repr__(self):
+        def _format_val(v):
+            if isinstance(v, str):
+                return "\'{}\'".format(v)
+            return v
+
+        return "<{} {}>".format(self.__class__.__name__, " ".join(["{}={}".format(k, _format_val(getattr(self,k))) for k in self._dict_keys]))
+
     def __str__(self):
         return self.__repr__()
+
+    @property
+    def server_name(self):
+        """
+        internal name of the server.
+
+        Returns
+        ----------
+        * (string)
+        """
+        return self._server_name
 
     @property
     def directory(self):
@@ -487,6 +506,9 @@ class ServerJob(object):
         # allow caching for input files
         self._input_files = None
 
+    def __repr__(self):
+        return "<{} job_name=\'{}\'>".format(self.__class__.__name__, self.job_name)
+
     def __str__(self):
         return self.__repr__()
 
@@ -616,6 +638,20 @@ class ServerJob(object):
         except _subprocess.CalledProcessError:
             return []
         return [_os.path.basename(f) for f in response.split()]
+
+    @property
+    def job_status(self):
+        """
+        Return the status of the job by checking the logged status file in the remote directory.
+
+        Returns
+        -----------
+        * (string): one of not-submitted, pending, running, canceled, failed, complete, unknown
+        """
+        if not self._job_submitted:
+            return 'not-submitted'
+
+        return self.server._run_server_cmd("cat {}".format(_os.path.join(self.remote_directory, "crimpl-job.status")))
 
     @property
     def job_files(self):

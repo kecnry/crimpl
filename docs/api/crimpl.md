@@ -6,5 +6,6 @@
 * [list_awsec2_volumes](crimpl.list_awsec2_volumes.md)
 * [list_servers](crimpl.list_servers.md)
 * [load_server](crimpl.load_server.md)
+* [remove_server](crimpl.remove_server.md)
 * [terminate_all_awsec2_instances](crimpl.terminate_all_awsec2_instances.md)
 * [terminate_awsec2_instance](crimpl.terminate_awsec2_instance.md)

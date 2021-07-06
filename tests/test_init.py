@@ -3,12 +3,13 @@ from nose.tools import assert_raises
 import crimpl
 
 def test_remoteslurm():
-    s = crimpl.RemoteSlurm(host='myserver', directory='~/blah')
+    s = crimpl.RemoteSlurmServer(host='myserver', directory='~/blah')
 
 def test_awsec2():
-    c = crimpl.AWSEC2Config()
+    # c = crimpl.AWSEC2()
     # TODO: figure out how to test this remotely
     #s = crimpl.AWSEC2.new(c)
+    return
 
 
 if __name__ == '__main__':

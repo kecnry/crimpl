@@ -11,11 +11,17 @@ extra_css: [extra.css]
 nav:
     - Installation & Setup: index.md
     - Server Implementations:
+        - RemoteThread: RemoteThread.md
         - RemoteSlurm: RemoteSlurm.md
         - AWSEC2: AWSEC2.md
+        - LocalThread: LocalThread.md
     - API:
         - crimpl (top-level): api/crimpl.md
+        - RemoteThreadServer: api/RemoteThreadServer.md
+        - RemoteThreadJob: api/RemoteThreadJob.md
         - RemoteSlurmServer: api/RemoteSlurmServer.md
         - RemoteSlurmJob: api/RemoteSlurmJob.md
         - AWSEC2Server: api/AWSEC2Server.md
         - AWSEC2Job: api/AWSEC2Job.md
+        - LocalThreadServer: api/LocalThreadServer.md
+        - LocalThreadJob: api/LocalThreadJob.md

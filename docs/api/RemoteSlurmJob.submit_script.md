@@ -46,6 +46,7 @@ Arguments
 * `mail_type` (string, optional, default='END,FAIL'): conditions to notify
     by email to `mail_user`.  Prepended to `script` as "#SBATCH --mail_user=mail_user".
 * `mail_user` (string, optional, default=None): email to send notifications.
+    If not provided or None, will default to the value in [RemoteSlurmServer.mail_user](RemoteSlurmServer.mail_user.md).
     Prepended to `script` as "#SBATCH --mail_user=mail_user"
 * `ignore_files` (list, optional, default=[]): list of filenames on the
     remote server to ignore when calling [RemoteSlurmJob.check_output](RemoteSlurmJob.check_output.md)

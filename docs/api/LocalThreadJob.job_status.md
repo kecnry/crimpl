@@ -3,7 +3,7 @@
 
 
 
-Return the status of the job by...
+Return the status of the job by checking the logged status file in the remote directory.
 
 Returns
 -----------

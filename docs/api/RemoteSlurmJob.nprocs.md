@@ -3,7 +3,7 @@
 
 
 
-Default number of processors to use when calling [RemoteSlurm.submit_job](RemoteSlurm.submit_job.md).
+Default number of processors to use when calling [RemoteSlurmJob.submit_script](RemoteSlurmJob.submit_script.md).
 
 Returns
 ---------

@@ -28,11 +28,25 @@ Each type of server implements a `run_script` which runs a given set of commands
 
 The configuration, options, and capabilities of each type of server are explored in more detail:
 
+* [LocalThread](LocalThread.md)
+* [RemoteThread](RemoteThread.md)
 * [RemoteSlurm](RemoteSlurm.md)
 * [AWSEC2](AWSEC2.md)
-* [LocalThread](LocalThread.md)
+
 
 ## API Documentation
+
+Local Thread:
+
+* [LocalThreadServer](./api/LocalThreadServer.md)
+* [LocalThreadJob](./api/LocalThreadJob.md)
+
+
+RemoteThread:
+
+* [RemoteThreadServer](./api/RemoteThreadServer.md)
+* [RemoteThreadJob](./api/RemoteThreadJob.md)
+
 
 Remote Slurm:
 
@@ -45,10 +59,9 @@ AWS EC2:
 * [AWSEC2Server](./api/AWSEC2Server.md)
 * [AWSEC2Job](./api/AWSEC2Job.md)
 
-Local Thread:
 
-* [LocalThreadServer](./api/LocalThreadServer.md)
-* [LocalThreadJob](./api/LocalThreadJob.md)
+
+
 
 ## Contributors
 
