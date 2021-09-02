@@ -351,7 +351,7 @@ class RemoteSlurmJob(_remotethread.RemoteThreadJob):
             # TODO: get around need to add IP to known hosts (either by
             # expecting and answering yes, or by looking into subnet options)
 
-            out = _common._run_cmd(cmd)
+            out = self.server._run_server_cmd(cmd)
             if "sbatch" in cmd:
                 self._slurm_id = out.split(' ')[-1]
 

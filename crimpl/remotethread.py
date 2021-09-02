@@ -144,7 +144,7 @@ class RemoteThreadJob(_common.ServerJob):
         for cmd in cmds:
             # TODO: get around need to add IP to known hosts (either by
             # expecting and answering yes, or by looking into subnet options)
-            _common._run_cmd(cmd)
+            self.server._run_server_cmd(cmd)
 
         return
 
@@ -216,7 +216,7 @@ class RemoteThreadJob(_common.ServerJob):
             # expecting and answering yes, or by looking into subnet options)
 
             if cmd is None: continue
-            _common._run_cmd(cmd, detach="nohup" in cmd)
+            self.server._run_server_cmd(cmd, detach="nohup" in cmd)
 
         self._job_submitted = True
         self._input_files = None
@@ -464,6 +464,6 @@ class RemoteThreadServer(_common.SSHServer):
         for cmd in cmds:
             # TODO: get around need to add IP to known hosts (either by
             # expecting and answering yes, or by looking into subnet options)
-            _common._run_cmd(cmd)
+            self._run_server_cmd(cmd)
 
         return

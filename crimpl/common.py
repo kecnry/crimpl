@@ -294,7 +294,7 @@ class Server(object):
                             **slurm_kwargs):
 
         if conda_env is False and isolate_env is True:
-            raise Value("cannot use isolate_env with conda_env=False")
+            raise ValueError("cannot use isolate_env with conda_env=False")
         # from job: self.server._submit_script_cmds(script, files, use_slurm, directory=self.remote_directory, conda_env=self.conda_env, isolate_env=self.isolate_env, job_name=self.job_name)
         # from server: self._submit_script_cmds(script, files, use_slurm=False, directory=self.directory, conda_env=conda_env, isolate_env=False, job_name=None)
 
@@ -392,14 +392,14 @@ class Server(object):
         else:
             remote_script = "./"+script_fname
             if use_nohup:
-                cmd = self.ssh_cmd.format("cd {directory}; chmod +x {remote_script}; nohup bash {remote_script} 2>&1 & echo $! > crimpl-nohup.pid".format(directory=directory,
+                cmd = self.ssh_cmd.format("cd {directory}; chmod +x {remote_script}; nohup bash {remote_script} 2> {remote_script}.err & echo $! > crimpl-nohup.pid".format(directory=directory,
                                                                                                                                                           remote_script=remote_script,
                                                                                                                                                           job_name=job_name if job_name is not None else "crimpl",
                                                                                                                                                           conda_env_path=conda_env_path))
 
             else:
-                cmd = self.ssh_cmd.format("cd {directory}; chmod +x {remote_script}; {remote_script}".format(directory=directory,
-                                                                                                            remote_script=remote_script))
+                cmd = self.ssh_cmd.format("cd {directory}; chmod +x {remote_script}; {remote_script} 2> {remote_script}.err".format(directory=directory,
+                                                                                                                                   remote_script=remote_script))
         if job_name is not None:
             return [mkdir_cmd, scp_cmd, logfiles_cmd, logenv_cmd, create_env_cmd, cmd]
         else:
@@ -828,16 +828,34 @@ class SSHServer(Server):
         # TODO: need to create a directory/exportpath.sh EXECUTABLE file that does the same as above
 
     def _run_server_cmd(self, cmd, exportpath=None, allow_retries=True):
-        if exportpath is None:
-            exportpath = 'conda' in cmd or 'crimpl_submit_script.sh' in cmd or 'crimpl_run_script.sh' in cmd
+        if cmd is None:
+            return
 
-        if exportpath:
-            ssh_cmd = self.ssh_cmd.format(cmd)
+        if cmd[:3] == 'scp':
+            ssh_cmd = cmd
+        elif cmd[:3] == 'ssh':
+            ssh_cmd = cmd
         else:
-            ssh_cmd = "{} \"{}\"".format(self._ssh_cmd, cmd)
-        # ssh_cmd = self.ssh_cmd+" \'export PATH=\"{directory}/crimpl-bin:$PATH\"; {cmd}\'".format(directory=self.directory.replace("~", "$HOME"), cmd=cmd)
-        # ssh_cmd = self.ssh_cmd+" \'{cmd}\'".format(directory=self.directory.replace("~", "$HOME"), cmd=cmd)
-        return _run_cmd(ssh_cmd, allow_retries=allow_retries)
+            if exportpath is None:
+                exportpath = 'conda' in cmd or 'crimpl_submit_script.sh' in cmd or 'crimpl_run_script.sh' in cmd
+
+            if exportpath:
+                ssh_cmd = self.ssh_cmd.format(cmd)
+            else:
+                ssh_cmd = "{} \"{}\"".format(self._ssh_cmd, cmd)
+            # ssh_cmd = self.ssh_cmd+" \'export PATH=\"{directory}/crimpl-bin:$PATH\"; {cmd}\'".format(directory=self.directory.replace("~", "$HOME"), cmd=cmd)
+            # ssh_cmd = self.ssh_cmd+" \'{cmd}\'".format(directory=self.directory.replace("~", "$HOME"), cmd=cmd)
+
+        try:
+            return _run_cmd(ssh_cmd, allow_retries=allow_retries)
+        except _subprocess.CalledProcessError as err:
+            if "2>" in ssh_cmd:
+                error_file = _os.path.join(self.directory, ssh_cmd.split("2>")[1].split()[0].split('\"')[0])
+                print("# crimpl: received error when running command, expecting stderr to be written to {}".format(error_file))
+                error_msg = self._run_server_cmd("cat {}".format(error_file), exportpath=False, allow_retries=True)
+                raise ValueError("server raised error: {}".format(error_msg))
+            else:
+                raise
 
     @property
     def scp_cmd_to(self):
