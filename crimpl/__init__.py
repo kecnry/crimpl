@@ -8,6 +8,7 @@ from .common import __version__, _run_cmd
 from .localthread import LocalThreadJob, LocalThreadServer
 from .remotethread import RemoteThreadJob, RemoteThreadServer
 from .remoteslurm import RemoteSlurmJob, RemoteSlurmServer
+from .remotepbs import RemotePBSJob, RemotePBSServer
 from .awsec2 import AWSEC2Job, AWSEC2Server, list_awsec2_volumes, list_awsec2_instances, terminate_awsec2_instance, delete_awsec2_volume, terminate_all_awsec2_instances, delete_all_awsec2_volumes
 
 
@@ -35,7 +36,7 @@ def load_server(name):
     Returns
     ----------
     * the appropriate server object (<LocalThreadServer>, <RemoteThreadServer>,
-        <RemoteSlurmServer>, <AWSEC2Server>)
+        <RemoteSlurmServer>, <RemotePBSServer>, <AWSEC2Server>)
     """
     filename = _os.path.join(_os.path.expanduser("~/.crimpl/servers"), "{}.json".format(name))
     if not _os.path.exists(filename):

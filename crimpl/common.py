@@ -325,6 +325,12 @@ class Server(object):
                                   'mail_type': '--mail-type=',
                                   'mail_user': '--mail-user='}
 
+        _pbs_kwarg_to_prefix = {'nnodes': '-l nodes=',
+                                'nprocs': '-l ppn=',
+                                'walltime': '-l walltime=',
+                                'mail_type': '-m ',
+                                'mail_user': '-M '}
+
         create_env_cmd, conda_env_path = self._create_conda_env(conda_env, isolate_env, job_name=job_name, check_if_exists=True, run_cmd=False)
 
         if use_scheduler and job_name is None:
@@ -347,6 +353,17 @@ class Server(object):
                         if k=='mail_type' and isinstance(v, list):
                             v = ",".join(v)
                         sched_script += ["#SBATCH {}{}".format(prefix, v)]
+
+                elif use_scheduler == 'pbs':
+                    sched_script += ["#PBS -N {}".format(job_name)]
+                    for k,v in sched_kwargs.items():
+                        if v is None: continue
+                        prefix = _pbs_kwarg_to_prefix.get(k, False)
+                        if prefix is False:
+                            raise NotImplementedError("PBS command for {} not implemented".format(k))
+                        if k=='mail_type' and isinstance(v, list):
+                            v = ",".join(v)
+                        sched_script += ["#PBS {}{}".format(prefix, v)]
 
                 else:
                     raise NotImplementedError("use_scheduler={} not implemented".format(use_scheduler))
@@ -397,6 +414,9 @@ class Server(object):
             if use_scheduler == 'slurm':
                 remote_script = _os.path.join(directory, _os.path.basename(script_fname))
                 cmd = self.ssh_cmd.format("sbatch {remote_script}".format(remote_script=remote_script))
+            elif use_scheduler == 'pbs':
+                remote_script = _os.path.basename(script_fname) # will be submitted from directory
+                cmd = self.ssh_cmd.format("cd {directory}; qsub {remote_script}".format(directory, remote_script=remote_script))
         else:
             remote_script = "./"+script_fname
             if use_nohup:
