@@ -13,6 +13,7 @@
 * [mail_user](RemoteSlurmServer.mail_user.md)
 * [run_script](RemoteSlurmServer.run_script.md)
 * [save](RemoteSlurmServer.save.md)
+* [scp](RemoteSlurmServer.scp.md)
 * [scp_cmd_from](RemoteSlurmServer.scp_cmd_from.md)
 * [scp_cmd_to](RemoteSlurmServer.scp_cmd_to.md)
 * [server_name](RemoteSlurmServer.server_name.md)

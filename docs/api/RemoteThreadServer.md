@@ -12,6 +12,7 @@
 * [install_conda](RemoteThreadServer.install_conda.md)
 * [run_script](RemoteThreadServer.run_script.md)
 * [save](RemoteThreadServer.save.md)
+* [scp](RemoteThreadServer.scp.md)
 * [scp_cmd_from](RemoteThreadServer.scp_cmd_from.md)
 * [scp_cmd_to](RemoteThreadServer.scp_cmd_to.md)
 * [server_name](RemoteThreadServer.server_name.md)

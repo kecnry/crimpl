@@ -3,7 +3,7 @@
 
 ```py
 
-def __init__(self, host, directory='~/crimpl', ssh='ssh', server_name=None)
+def __init__(self, host, directory='~/crimpl', ssh='ssh', scp='scp', server_name=None)
 
 ```
 
@@ -23,6 +23,8 @@ Arguments
     if it does not already exist.
 * `ssh` (string, optional, default='ssh'): command (and any arguments in
     addition to `host`) to ssh to the remote server.
+* `scp` (string, optional, default='scp'): command (and any arguments)
+    to copy files to the remote server.
 * `server_name` (string): name to assign to the server.  If not provided,
     will be adopted automatically from `host` and available from
     [RemoteThreadServer.server_name](RemoteThreadServer.server_name.md).

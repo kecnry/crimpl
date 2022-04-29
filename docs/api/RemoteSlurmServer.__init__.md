@@ -3,7 +3,7 @@
 
 ```py
 
-def __init__(self, host, directory='~/crimpl', ssh='ssh', mail_user=None, server_name=None)
+def __init__(self, host, directory='~/crimpl', ssh='ssh', scp='scp', mail_user=None, server_name=None)
 
 ```
 
@@ -23,6 +23,8 @@ Arguments
     if it does not already exist.
 * `ssh` (string, optional, default='ssh'): command (and any arguments in
     addition to `host`) to ssh to the remote server.
+* `scp` (string, optional, default='scp'): command (and any arguments)
+    to copy files to the remote server.
 * `mail_user` (string, optional, default=None): email to send notifications.
     If not provided or None, will default to the value in [RemoteSlurmServer.mail_user](RemoteSlurmServer.mail_user.md).
     Prepended to `script` as "#SBATCH --mail_user=mail_user"
