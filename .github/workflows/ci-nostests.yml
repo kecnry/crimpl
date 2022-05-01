@@ -44,4 +44,8 @@ jobs:
 
     - name: Run nosetests
       run: |
-        nosetests --with-coverage --cover-package=crimpl -v -s -d;
+        python -m pip install nose
+        nosetests --with-coverage --cover-package=crimpl -v -s -d
+
+    - name: Submit coverage to codecov
+      uses: codecov/codecov-action@v2
