@@ -48,4 +48,9 @@ jobs:
         nosetests --with-coverage --cover-package=crimpl -v -s -d
 
     - name: Submit coverage to codecov
+      if: matrix.python-version == '3.7'
       uses: codecov/codecov-action@v2
+      with:
+        files: ./coverage.xml
+        fail_ci_if_error: true
+        verbose: true
