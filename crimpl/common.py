@@ -5,7 +5,7 @@ import subprocess as _subprocess
 import json as _json
 from time import sleep as _sleep
 
-__version__ = '0.1.0-dev2'
+__version__ = '0.1.0'
 
 def _new_job_name():
     return _datetime.now().strftime('%Y.%m.%d-%H.%M.%S')
