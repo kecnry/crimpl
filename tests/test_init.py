@@ -1,5 +1,4 @@
-from nose.tools import assert_raises
-
+import pytest
 import crimpl
 
 def test_remoteslurm():
