@@ -31,6 +31,7 @@ The configuration, options, and capabilities of each type of server are explored
 * [LocalThread](LocalThread.md)
 * [RemoteThread](RemoteThread.md)
 * [RemoteSlurm](RemoteSlurm.md)
+* [AWSEC2](AWSEC2.md)
 
 
 ## API Documentation
@@ -51,6 +52,14 @@ Remote Slurm:
 
 * [RemoteSlurmServer](./api/RemoteSlurmServer.md)
 * [RemoteSlurmJob](./api/RemoteSlurmJob.md)
+
+
+AWS EC2:
+
+* [AWSEC2Server](./api/AWSEC2Server.md)
+* [AWSEC2Job](./api/AWSEC2Job.md)
+
+
 
 
 

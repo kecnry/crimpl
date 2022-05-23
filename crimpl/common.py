@@ -184,6 +184,11 @@ class Server(object):
             return None, None
 
         default_deps = "pip numpy"
+        if self.__class__.__name__ == 'AWSEC2Server':
+            # NOTE: AWS needs mpi4py via CONDA not PIP, so we'll include it by default
+            # other servers/user may prefer the pip installation
+            default_deps = "gcc_linux-64 gxx_linux-64 openmpi mpi4py "+default_deps
+
 
         if not (isinstance(conda_env, str) or conda_env is None):
             raise TypeError("conda_env must be a string or None")
@@ -370,7 +375,7 @@ class Server(object):
                 f.write("eval \"$(conda shell.bash hook)\"\nconda activate {}\n".format(conda_env_path))
         f.write("\n".join(script))
         if terminate_on_complete:
-            # should really only be used for future AWS support
+            # should really only be used for AWS
             f.write("\nsudo shutdown now")
         f.close()
 
@@ -613,6 +618,7 @@ class ServerJob(object):
         * (string)
         """
         if self._remote_directory is None:
+            # NOTE: for AWSEC2 self.server.ssh_cmd may point to the job EC2 instance if the server is not running
             home_dir = self.server._run_server_cmd("pwd")
             if "~" in self.server.directory:
                 self._remote_directory = _os.path.join(self.server.directory.replace("~", home_dir), "crimpl-job-{}".format(self.job_name))
