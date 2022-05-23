@@ -14,7 +14,6 @@ nav:
         - LocalThread: LocalThread.md
         - RemoteThread: RemoteThread.md
         - RemoteSlurm: RemoteSlurm.md
-        - AWSEC2: AWSEC2.md
     - API:
         - crimpl (top-level): api/crimpl.md
         - LocalThreadServer: api/LocalThreadServer.md
@@ -23,5 +22,3 @@ nav:
         - RemoteThreadJob: api/RemoteThreadJob.md
         - RemoteSlurmServer: api/RemoteSlurmServer.md
         - RemoteSlurmJob: api/RemoteSlurmJob.md
-        - AWSEC2Server: api/AWSEC2Server.md
-        - AWSEC2Job: api/AWSEC2Job.md
